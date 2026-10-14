@@ -396,6 +396,28 @@ The backend exposes a REST API at `http://localhost:31415/api/`:
 | `VIDYA_DATA_PATH` | Repository root | Path to store database, keys, and assets |
 | `PORT`            | `31415`         | Server port                              |
 
+### Single Sign-On (OIDC)
+
+VIDYA can log users in through any OpenID Connect provider (Authelia, Authentik, Keycloak, ...). SSO is enabled when `OIDC_ISSUER_URL` is set; the login page then shows an extra SSO button.
+
+| Variable                   | Default                       | Description                                                                                                                              |
+| -------------------------- | ----------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
+| `OIDC_ISSUER_URL`          | —                             | Issuer URL of the provider (enables SSO)                                                                                                 |
+| `OIDC_CLIENT_ID`           | —                             | Client ID (required)                                                                                                                     |
+| `OIDC_CLIENT_SECRET`       | —                             | Client secret, sent with `client_secret_basic`; omit for a public client                                                                 |
+| `OIDC_REDIRECT_URI`        | —                             | Public callback URL, e.g. `https://vidya.example.com/api/auth/oidc/callback` (required)                                                  |
+| `OIDC_SCOPES`              | `openid profile email groups` | Requested scopes                                                                                                                         |
+| `OIDC_BUTTON_LABEL`        | `Log in with SSO`             | Text of the login button                                                                                                                 |
+| `OIDC_USERNAME_CLAIM`      | `preferred_username`          | Claim used as the VIDYA username                                                                                                         |
+| `OIDC_GROUPS_CLAIM`        | `groups`                      | Claim holding the user's groups                                                                                                          |
+| `OIDC_ADMIN_GROUP`         | —                             | Members of this group become admins, everyone else becomes a regular user; synced on every SSO login. Unset = roles are managed in VIDYA |
+| `OIDC_AUTO_CREATE`         | `true`                        | Create an account on first SSO login; when `false` only existing users can log in                                                        |
+| `OIDC_DISABLE_LOCAL_LOGIN` | `false`                       | Disable username/password login (the first-startup setup still works)                                                                    |
+
+On the first SSO login, an existing VIDYA account with the same username is linked to the SSO identity; after that, the user is matched by the provider's `sub`. Only connect a provider whose usernames you trust.
+
+Register VIDYA at the provider as a confidential client using the authorization code flow with PKCE (`S256`) and the redirect URI above. If the provider uses a private CA, add `NODE_EXTRA_CA_CERTS=/path/to/ca.crt`.
+
 ### Data Storage
 
 VIDYA stores its data in the following locations:
