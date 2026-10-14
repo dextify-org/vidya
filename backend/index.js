@@ -1,5 +1,6 @@
 import express from "express";
 import sequelize from "./config/database.js";
+import { DataTypes } from "sequelize";
 import crypto from "crypto";
 import cors from "cors";
 import passport from "passport";
@@ -21,6 +22,7 @@ import { populateUser } from "./middleware/owner.js";
 import { promises as fsp } from "fs";
 import path from "path";
 import { ASSETS_PATH, WEB_PATH, PORT, KEYS_PATH } from "./config/path.js";
+import { OIDC } from "./config/oidc.js";
 const SequelizeStore = sessionConnect(session.Store);
 const app = express();
 
@@ -41,6 +43,22 @@ const secretKey = async () => {
 };
 const expressSecret = await secretKey();
 const syncdb = async () => {
+  // sync() never alters existing tables, so add columns introduced later.
+  const queryInterface = sequelize.getQueryInterface();
+  if ((await queryInterface.showAllTables()).includes("Users")) {
+    const columns = await queryInterface.describeTable("Users");
+    if (!columns.oidcSub) {
+      await queryInterface.addColumn("Users", "oidcSub", DataTypes.STRING);
+    }
+    const indexes = await queryInterface.showIndex("Users");
+    const hasUniqueSub = indexes.some(
+      (index) =>
+        index.unique && index.fields.some((f) => f.attribute === "oidcSub"),
+    );
+    if (!hasUniqueSub) {
+      await queryInterface.addIndex("Users", ["oidcSub"], { unique: true });
+    }
+  }
   await sequelize.sync({ logging: false });
   console.log("Database & tables created!");
   await Server.findOrCreate({
@@ -123,7 +141,8 @@ app.use(
     cookie: {
       httpOnly: true,
       secure: false,
-      sameSite: "strict",
+      // The OIDC callback is a cross-site redirect; strict would drop the session.
+      sameSite: OIDC.enabled ? "lax" : "strict",
       maxAge: 24 * 60 * 60 * 1000,
     },
   }),
