@@ -32,7 +32,10 @@ import {
   securityHeaders,
 } from "./security/http.js";
 import { registerInitialAdministrator } from "./security/setup.js";
-import { migrateTagOwnershipIndex } from "./security/migrations.js";
+import {
+  migrateFilesystemIdentityColumns,
+  migrateTagOwnershipIndex,
+} from "./security/migrations.js";
 const SequelizeStore = sessionConnect(session.Store);
 const app = express();
 const HOST = process.env.HOST?.trim() || "127.0.0.1";
@@ -46,6 +49,7 @@ const syncdb = async () => {
     sequelize.getQueryInterface(),
     TagsAndBookmark.getTableName(),
   );
+  await migrateFilesystemIdentityColumns(sequelize.getQueryInterface());
   console.log("Database & tables created!");
   await Server.findOrCreate({
     where: { name: "VIDYA" },

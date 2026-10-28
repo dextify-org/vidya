@@ -1,3 +1,5 @@
+import { DataTypes } from "sequelize";
+
 const LEGACY_TAG_INDEX_FIELDS = ["lectureId", "type"];
 const OWNED_TAG_INDEX_FIELDS = ["UserId", "lectureId", "type"];
 const OWNED_TAG_INDEX_NAME =
@@ -36,5 +38,19 @@ export const migrateTagOwnershipIndex = async (
       name: OWNED_TAG_INDEX_NAME,
       unique: true,
     });
+  }
+};
+
+export const migrateFilesystemIdentityColumns = async (queryInterface) => {
+  const tables = ["Courses", "Sections", "Lectures"];
+
+  for (const tableName of tables) {
+    const columns = await queryInterface.describeTable(tableName);
+    if (!columns.sourceId) {
+      await queryInterface.addColumn(tableName, "sourceId", {
+        type: DataTypes.STRING,
+        allowNull: true,
+      });
+    }
   }
 };

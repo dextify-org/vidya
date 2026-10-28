@@ -11,6 +11,7 @@ const Course = sequelize.define("Course", {
   originalName: DataTypes.STRING,
   cleanedName: DataTypes.STRING,
   directory: DataTypes.STRING,
+  sourceId: DataTypes.STRING,
   description: DataTypes.TEXT,
   photo: DataTypes.STRING,
   duration: DataTypes.FLOAT,

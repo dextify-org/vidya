@@ -10,6 +10,7 @@ const Lecture = sequelize.define("Lecture", {
   },
   originalName: DataTypes.STRING,
   cleanedName: DataTypes.STRING,
+  sourceId: DataTypes.STRING,
   order: DataTypes.FLOAT,
   type: DataTypes.STRING,
   path: DataTypes.STRING,

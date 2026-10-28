@@ -20,6 +20,7 @@ import {
 import { loadOrCreateSecuritySecrets } from "../security/secrets.js";
 import { toSafeUser } from "../security/user.js";
 import { migrateTagOwnershipIndex } from "../security/migrations.js";
+import { migrateFilesystemIdentityColumns } from "../security/migrations.js";
 import { verifyAndUpgradeUserPassword } from "../security/auth.js";
 
 test("password records use versioned PBKDF2-SHA512 with 210k iterations", () => {
@@ -285,4 +286,31 @@ test("legacy global tag uniqueness is migrated to per-user uniqueness", async ()
   ]);
   assert.deepEqual(added[0].fields, ["UserId", "lectureId", "type"]);
   assert.equal(added[0].options.unique, true);
+});
+
+test("filesystem identity migration adds source IDs only to legacy tables", async () => {
+  const columns = {
+    Courses: { id: {} },
+    Sections: { id: {}, sourceId: {} },
+    Lectures: { id: {} },
+  };
+  const added = [];
+  const queryInterface = {
+    async describeTable(tableName) {
+      return columns[tableName];
+    },
+    async addColumn(tableName, columnName, definition) {
+      added.push({ tableName, columnName, definition });
+    },
+  };
+
+  await migrateFilesystemIdentityColumns(queryInterface);
+
+  assert.deepEqual(
+    added.map(({ tableName, columnName }) => ({ tableName, columnName })),
+    [
+      { tableName: "Courses", columnName: "sourceId" },
+      { tableName: "Lectures", columnName: "sourceId" },
+    ],
+  );
 });

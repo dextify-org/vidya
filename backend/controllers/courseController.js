@@ -87,6 +87,12 @@ const normalizePath = (inputPath) => {
   return path.normalize(inputPath);
 };
 
+const getSourceId = (filePath) => {
+  const stats = fs.statSync(filePath);
+  if (!Number.isInteger(stats.ino) || stats.ino === 0) return null;
+  return `${stats.dev}:${stats.ino}`;
+};
+
 const VIDEO_EXT = new Set([".mp4", ".mkv", ".avi", ".mov"]);
 const CONTENT_EXT = new Set([".html", ".txt", ".pdf", ".zip", ".md"]);
 const SUB_EXT = new Set([".vtt", ".srt"]);
@@ -264,24 +270,45 @@ const syncCourseDirectory = async (coursedirectory, courseFolderId) => {
     return null;
   }
 
+  const courseSourceId = getSourceId(directory);
   let course = await Course.findOne({ where: { directory } });
+  if (!course && courseSourceId) {
+    course = await Course.findOne({
+      where: { CourseFolderId: courseFolderId, sourceId: courseSourceId },
+    });
+  }
+
+  const courseAttributes = {
+    originalName: path.basename(directory),
+    cleanedName: cleanNameCourse(path.basename(directory)),
+    directory,
+    sourceId: courseSourceId,
+  };
+
   if (!course) {
     course = await Course.create({
-      originalName: path.basename(directory),
-      cleanedName: cleanNameCourse(path.basename(directory)),
-      directory,
+      ...courseAttributes,
       duration: 0,
       CourseFolderId: courseFolderId,
     });
     console.log("new course created");
+  } else {
+    await course.update(courseAttributes);
   }
 
-  const currentSectionDirs = new Set(
-    naturalSort(
-      fs
-        .readdirSync(directory)
-        .filter((f) => fs.statSync(path.join(directory, f)).isDirectory()),
-    ),
+  const currentSections = naturalSort(
+    fs
+      .readdirSync(directory)
+      .filter((name) => fs.statSync(path.join(directory, name)).isDirectory())
+      .map((name) => ({
+        name,
+        sourceId: getSourceId(path.join(directory, name)),
+      })),
+  );
+  const currentSectionsBySourceId = new Map(
+    currentSections
+      .filter(({ sourceId }) => sourceId)
+      .map((section) => [section.sourceId, section]),
   );
 
   const existingSections = await Section.findAll({
@@ -290,8 +317,10 @@ const syncCourseDirectory = async (coursedirectory, courseFolderId) => {
   });
 
   for (const section of existingSections) {
-    const sectionPath = path.join(directory, section.originalName);
-    if (!currentSectionDirs.has(section.originalName)) {
+    const currentSection =
+      (section.sourceId && currentSectionsBySourceId.get(section.sourceId)) ||
+      currentSections.find(({ name }) => name === section.originalName);
+    if (!currentSection) {
       const pathIdsToDelete = await collectPathIdsForSection(section.id);
 
       await section.destroy();
@@ -304,17 +333,30 @@ const syncCourseDirectory = async (coursedirectory, courseFolderId) => {
       continue;
     }
 
+    const sectionPath = path.join(directory, currentSection.name);
+    await section.update({
+      originalName: currentSection.name,
+      cleanedName: cleanName(currentSection.name),
+      sourceId: currentSection.sourceId,
+      order: parseBaseNumber(currentSection.name) || 0,
+    });
+
     const files = naturalSort(fs.readdirSync(sectionPath));
     const fileGroups = groupFiles(files);
-    const validLectureFiles = new Set(
-      Array.from(fileGroups.values())
-        .filter((group) => group.main)
-        .map((group) => group.main),
-    );
+    const validLectures = new Map();
+    for (const group of fileGroups.values()) {
+      if (!group.main) continue;
+      const mainFile = group.main;
+      const sourceId = getSourceId(path.join(sectionPath, mainFile));
+      validLectures.set(mainFile, mainFile);
+      if (sourceId) validLectures.set(sourceId, mainFile);
+    }
 
     for (const lecture of section.lectures) {
-      const lectureName = path.basename(lecture.path || "");
-      if (!validLectureFiles.has(lectureName)) {
+      const lectureName =
+        (lecture.sourceId && validLectures.get(lecture.sourceId)) ||
+        validLectures.get(path.basename(lecture.path || ""));
+      if (!lectureName) {
         const pathIdsToDelete = collectPathIdsForLecture(lecture);
 
         await lecture.destroy();
@@ -323,6 +365,14 @@ const syncCourseDirectory = async (coursedirectory, courseFolderId) => {
         for (const pathId of pathIdsToDelete) {
           usedPathIds.add(pathId);
         }
+      } else {
+        await lecture.update({
+          originalName: lectureName,
+          cleanedName: cleanName(lectureName),
+          sourceId: getSourceId(path.join(sectionPath, lectureName)),
+          path: path.join(sectionPath, lectureName),
+          order: parseBaseNumber(lectureName) || 0,
+        });
       }
     }
 
@@ -333,7 +383,7 @@ const syncCourseDirectory = async (coursedirectory, courseFolderId) => {
   const lecturesToCreate = [];
   const lectureUpdates = [];
 
-  for (const sectionDir of currentSectionDirs) {
+  for (const { name: sectionDir, sourceId: sectionSourceId } of currentSections) {
     const sectionPath = path.join(directory, sectionDir);
     let section = await Section.findOne({
       where: {
@@ -341,14 +391,26 @@ const syncCourseDirectory = async (coursedirectory, courseFolderId) => {
         originalName: sectionDir,
       },
     });
+    if (!section && sectionSourceId) {
+      section = await Section.findOne({
+        where: { CourseId: course.id, sourceId: sectionSourceId },
+      });
+    }
 
     if (!section) {
       section = await Section.create({
         originalName: sectionDir,
         cleanedName: cleanName(sectionDir),
+        sourceId: sectionSourceId,
         order: parseBaseNumber(sectionDir) || 0,
         CourseId: course.id,
         duration: 0,
+      });
+    } else {
+      await section.update({
+        originalName: sectionDir,
+        cleanedName: cleanName(sectionDir),
+        sourceId: sectionSourceId,
       });
     }
 
@@ -370,6 +432,7 @@ const syncCourseDirectory = async (coursedirectory, courseFolderId) => {
         ? "video"
         : path.extname(mainFile).replace(".", "");
       const filePath = path.join(sectionPath, mainFile);
+      const lectureSourceId = getSourceId(filePath);
 
       let lecture = await Lecture.findOne({
         where: {
@@ -377,6 +440,11 @@ const syncCourseDirectory = async (coursedirectory, courseFolderId) => {
           originalName: mainFile,
         },
       });
+      if (!lecture && lectureSourceId) {
+        lecture = await Lecture.findOne({
+          where: { SectionId: section.id, sourceId: lectureSourceId },
+        });
+      }
 
       const content = group.contents.map(async (f) => {
         const contentPath = path.join(sectionPath, f);
@@ -550,6 +618,7 @@ const syncCourseDirectory = async (coursedirectory, courseFolderId) => {
           sectionPath,
           filePath,
           mainFile,
+          lectureSourceId,
           base,
           lectureType,
           content,
@@ -561,6 +630,7 @@ const syncCourseDirectory = async (coursedirectory, courseFolderId) => {
           lecturesToCreate.push({
             originalName: mainFile,
             cleanedName: cleanName(mainFile),
+            sourceId: lectureSourceId,
             order: base,
             type: lectureType,
             path: filePath,
@@ -572,6 +642,9 @@ const syncCourseDirectory = async (coursedirectory, courseFolderId) => {
         } else {
           lectureUpdates.push({
             id: lecture.id,
+            originalName: mainFile,
+            cleanedName: cleanName(mainFile),
+            sourceId: lectureSourceId,
             order: base,
             duration: 0,
             path: filePath,
@@ -597,6 +670,7 @@ const syncCourseDirectory = async (coursedirectory, courseFolderId) => {
         sectionId,
         filePath,
         mainFile,
+        lectureSourceId,
         base,
         lectureType,
         content,
@@ -609,6 +683,7 @@ const syncCourseDirectory = async (coursedirectory, courseFolderId) => {
         lecturesToCreate.push({
           originalName: mainFile,
           cleanedName: cleanName(mainFile),
+          sourceId: lectureSourceId,
           order: base,
           type: lectureType,
           path: filePath,
@@ -620,6 +695,9 @@ const syncCourseDirectory = async (coursedirectory, courseFolderId) => {
       } else {
         lectureUpdates.push({
           id: lecture.id,
+          originalName: mainFile,
+          cleanedName: cleanName(mainFile),
+          sourceId: lectureSourceId,
           order: base,
           duration,
           path: filePath,
@@ -638,6 +716,9 @@ const syncCourseDirectory = async (coursedirectory, courseFolderId) => {
     for (const update of lectureUpdates) {
       await Lecture.update(
         {
+          originalName: update.originalName,
+          cleanedName: update.cleanedName,
+          sourceId: update.sourceId,
           order: update.order,
           duration: update.duration,
           path: update.path,
@@ -700,6 +781,33 @@ const scanForDirectory = async (directory) =>
         .map((f) => path.join(directory, f)),
     ),
   );
+
+const reconcileLegacyCourseRename = async (courseFolderId, directories) => {
+  const courses = await Course.findAll({ where: { CourseFolderId: courseFolderId } });
+  const directoryPaths = Array.from(directories).map(normalizePath);
+  const knownDirectories = new Set(courses.map(({ directory }) => directory));
+  const missingCourses = courses.filter(
+    (course) => !course.sourceId && !directoryPaths.includes(course.directory),
+  );
+  const addedDirectories = directoryPaths.filter(
+    (directory) => !knownDirectories.has(directory),
+  );
+
+  // Legacy records have no stable filesystem identity. Only upgrade a rename
+  // when there is exactly one possible pairing, avoiding broad guesswork.
+  if (missingCourses.length !== 1 || addedDirectories.length !== 1) return;
+
+  const [course] = missingCourses;
+  const [directory] = addedDirectories;
+  await course.update({
+    originalName: path.basename(directory),
+    cleanedName: cleanNameCourse(path.basename(directory)),
+    directory,
+    sourceId: getSourceId(directory),
+  });
+  console.log(`Renamed course: ${course.cleanedName}`);
+};
+
 const collectPathIdsForCourse = async (courseId) => {
   const sections = await Section.findAll({
     where: { CourseId: courseId },
@@ -764,6 +872,7 @@ const scan = async (req, res) => {
       const individualCourseDirectory = await scanForDirectory(
         folder.directory,
       );
+      await reconcileLegacyCourseRename(folder.id, individualCourseDirectory);
       for (const individualCourse of individualCourseDirectory) {
         await syncCourseDirectory(normalizePath(individualCourse), folder.id);
       }
