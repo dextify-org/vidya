@@ -489,6 +489,14 @@ npm run server
 npm run dev-server
 ```
 
+To serve the frontend through a reverse proxy or tunnel, set
+`VIDYA_ALLOWED_HOSTS` to a comma-separated list of its public hostnames. This
+can be provided in the command environment or a local `.env` file:
+
+```bash
+VIDYA_ALLOWED_HOSTS=learning.example.com npm run start
+```
+
 ---
 
 ### Development Guidelines
