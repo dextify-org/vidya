@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { isAuthenticated, verifyQueryToken } from "../middleware/owner.js";
+import { isAuthenticated } from "../middleware/owner.js";
 import {
   Category,
   Course,
@@ -172,7 +172,6 @@ router.post("/lectureprogress", isAuthenticated, async (req, res) => {
 });
 router.get(
   "/stream/:LectureId",
-  verifyQueryToken,
   isAuthenticated,
   async (req, res) => {
     const { LectureId } = req.params;
@@ -221,7 +220,6 @@ router.get(
 );
 router.get(
   "/download/:LectureId",
-  verifyQueryToken,
   isAuthenticated,
   async (req, res) => {
     try {
@@ -269,7 +267,6 @@ router.get(
 );
 router.get(
   "/content/:contentId",
-  verifyQueryToken,
   isAuthenticated,
   async (req, res) => {
     try {
@@ -309,7 +306,7 @@ router.get(
     }
   }
 );
-router.get("/subtitle/:subtitleId", async (req, res) => {
+router.get("/subtitle/:subtitleId", isAuthenticated, async (req, res) => {
   try {
     const { subtitleId } = req.params;
     const subtitle = await PathFile.findByPk(subtitleId);

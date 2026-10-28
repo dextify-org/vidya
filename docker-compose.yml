@@ -1,17 +1,28 @@
 services:
   vidya:
-    image: ghcr.io/dextify/vidya:latest
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: vidya:local
     container_name: vidya
     ports:
-      - "31415:31415"
+      - "${VIDYA_BIND_ADDRESS:-127.0.0.1}:${VIDYA_PORT:-31415}:31415"
     volumes:
-      - ./vidya-data:/data
-      - /path/to/your/media:/media:ro
+      - vidya-data:/data
+      - "${VIDYA_MEDIA_PATH:-./media}:/media:ro"
     environment:
-      - VIDYA_DATA_PATH=/data
-      - PORT=31415
+      VIDYA_DATA_PATH: /data
+      HOST: 0.0.0.0
+      PORT: "31415"
+    read_only: true
+    tmpfs:
+      - /tmp:size=64m,mode=1777
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    init: true
     restart: unless-stopped
 
 volumes:
   vidya-data:
-    driver: local

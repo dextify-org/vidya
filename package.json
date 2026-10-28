@@ -7,10 +7,12 @@
     "backend"
   ],
   "scripts": {
-    "start": "react-scripts start",
-    "build": "react-scripts build",
-    "test": "react-scripts test",
-    "eject": "react-scripts eject",
+    "start": "vite",
+    "build": "vite build",
+    "test": "npm run test:frontend && npm run test:backend",
+    "test:frontend": "vitest run",
+    "test:backend": "node --test backend/tests/*.test.js",
+    "test:watch": "vitest",
     "server": "npm start -w backend",
     "dev": "concurrently \"npm run dev-server\" \"npm run start\"",
     "dev-server": "npm run dev -w backend"
@@ -20,42 +22,28 @@
     "url": "https://dextify.org"
   },
   "license": "GNU General Public License v3.0",
-  "proxy": "http://localhost:31415",
   "dependencies": {
-    "@testing-library/jest-dom": "^5.17.0",
-    "@testing-library/react": "^13.4.0",
-    "@testing-library/user-event": "^13.5.0",
-    "axios": "^1.7.7",
+    "axios": "^1.19.0",
     "framer-motion": "^11.11.1",
     "react": "^18.3.1",
     "react-chartjs-2": "^5.2.0",
     "react-dom": "^18.3.1",
     "react-parallax-tilt": "^1.7.245",
-    "react-router-dom": "^6.26.2",
-    "react-scan": "^0.5.3",
-    "react-scripts": "^5.0.1",
-    "web-vitals": "^2.1.4"
+    "react-router-dom": "6.30.4"
   },
   "devDependencies": {
+    "@testing-library/jest-dom": "^6.9.1",
+    "@testing-library/react": "^16.3.2",
+    "@testing-library/user-event": "^14.6.1",
+    "@vitejs/plugin-react": "^5.1.2",
     "concurrently": "^8.2.2",
-    "nodemon": "^3.1.4"
+    "jsdom": "^28.0.0",
+    "nodemon": "^3.1.4",
+    "supertest": "^7.2.2",
+    "vite": "^7.3.1",
+    "vitest": "^4.0.18"
   },
-  "eslintConfig": {
-    "extends": [
-      "react-app",
-      "react-app/jest"
-    ]
-  },
-  "browserslist": {
-    "production": [
-      ">0.2%",
-      "not dead",
-      "not op_mini all"
-    ],
-    "development": [
-      "last 1 chrome version",
-      "last 1 firefox version",
-      "last 1 safari version"
-    ]
+  "engines": {
+    "node": ">=20.19.0"
   }
 }

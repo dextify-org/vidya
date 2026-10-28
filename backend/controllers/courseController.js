@@ -1,17 +1,15 @@
 import path from "path";
 import os from "os";
 import fs, { promises as fsp } from "fs";
-import { exec } from "child_process";
 import { v4 as uuidv4 } from "uuid";
 import {
-  Server,
-  User,
   CourseFolder,
   Lecture,
   Section,
   Course,
   PathFile,
 } from "../models/index.js";
+import { probeMediaDuration } from "../utils/media.js";
 import ffprobe from "@ffprobe-installer/ffprobe";
 const isWindows = os.platform() === "win32";
 const ffprobePath = ffprobe.path;
@@ -169,23 +167,15 @@ const getVideoDurations = async (filePaths) => {
 
   for (let i = 0; i < filesToProcess.length; i += concurrencyLimit) {
     const chunk = filesToProcess.slice(i, i + concurrencyLimit);
-    const promises = chunk.map((filePath) => {
-      return new Promise((resolve) => {
-        exec(
-          `"${ffprobePath}" -v error -show_entries format=duration -of default=noprint_wrappers=1:nokey=1 "${filePath}"`,
-          (error, stdout) => {
-            if (error) {
-              console.error(`Error getting duration for ${filePath}:`, error);
-              results[filePath] = 0;
-            } else {
-              const duration = parseFloat(stdout.trim()) || 0;
-              results[filePath] = duration;
-              durationCache.set(filePath, duration);
-            }
-            resolve();
-          },
-        );
-      });
+    const promises = chunk.map(async (filePath) => {
+      try {
+        const duration = await probeMediaDuration(ffprobePath, filePath);
+        results[filePath] = duration;
+        durationCache.set(filePath, duration);
+      } catch (error) {
+        console.error(`Error getting duration for ${filePath}:`, error);
+        results[filePath] = 0;
+      }
     });
 
     await Promise.all(promises);
@@ -766,51 +756,6 @@ const deleteCourse = async (courseId) => {
     pathFilesDeleted: pathIdsToDelete.length,
   };
 };
-const register = async (req, res) => {
-  try {
-    const user = await User.create({
-      username: req.body.username,
-      password: req.body.password,
-      role: "admin",
-    });
-
-    const folders = await Promise.all(
-      req.body.folders.map(async (folder) => {
-        const stats = await fsp.stat(folder);
-        return {
-          directory: normalizePath(folder),
-          lastModified: stats.mtime,
-          lastChecked: new Date(),
-        };
-      }),
-    );
-
-    const coursefolder = await CourseFolder.bulkCreate(folders, {
-      returning: true,
-    });
-
-    for (const folder of coursefolder) {
-      const individualCourseDirectory = await scanForDirectory(
-        folder.directory,
-      );
-      for (const individualCourse of individualCourseDirectory) {
-        await syncCourseDirectory(normalizePath(individualCourse), folder.id);
-      }
-    }
-
-    const server = await Server.findAll();
-    await server[0].update({ isFirstStartUp: false });
-
-    req.login(user, (err) => {
-      if (err) return res.status(500).json({ error: "Login failed" });
-      res.json({ message: "Registration successful", user });
-    });
-  } catch (error) {
-    console.error(error);
-    res.status(400).json({ error: error });
-  }
-};
-
 const scan = async (req, res) => {
   try {
     const coursefolder = await CourseFolder.findAll();
@@ -880,4 +825,4 @@ const deleteFolder = async (req, res) => {
     res.status(500).send("Error removing folder");
   }
 };
-export { register, scan, addCourseFolder, deleteFolder };
+export { scan, addCourseFolder, deleteFolder };

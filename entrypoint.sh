@@ -5,7 +5,7 @@ mkdir -p /data/assets
 
 for f in /app/defaults/*; do
   [ -f "$f" ] || continue
-  filename=$(basename "$f")
+  filename=${f##*/}
   if [ ! -f "/data/assets/$filename" ]; then
     cp "$f" "/data/assets/$filename"
   fi

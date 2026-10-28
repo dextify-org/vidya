@@ -1,6 +1,5 @@
 import { Router } from "express";
 import {
-  isAdminOrFirstStartUp,
   isAdmin,
   isAuthenticated,
 } from "../middleware/owner.js";
@@ -8,7 +7,6 @@ import { upload } from "../utils/imageStorage.js";
 import {
   uploadImageCourse,
   scan,
-  register,
   createCategory,
   createUser,
   getAdminData,
@@ -25,8 +23,6 @@ import {
   deleteInstructor,
 } from "../controllers/index.js";
 const router = Router();
-
-router.post("/register", isAdminOrFirstStartUp, register);
 
 router.post("/scan", isAdmin, scan);
 router.post("/add-user", isAdmin, createUser);

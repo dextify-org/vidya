@@ -1,41 +1,10 @@
-import { User, Server } from "../models/index.js";
-import jwt from "jsonwebtoken";
-
-const JWT_SECRET = "your-jwt-secret-key";
-
-const populateUser = async (req, res, next) => {
-  if (req.user) return next();
-
-  const authHeader = req.headers.authorization;
-  if (!authHeader) return next();
-
-  const token = authHeader.split(" ")[1];
-
-  try {
-    const decoded = jwt.verify(token, JWT_SECRET);
-    req.user = await User.findByPk(decoded.id);
-    next();
-  } catch (error) {
-    next();
-  }
-};
+import { Server } from "../models/index.js";
 
 const isAuthenticated = (req, res, next) => {
   if (req.user) return next();
   if (req.isAuthenticated()) return next();
 
   return res.status(401).json({ message: "Authentication required" });
-};
-const verifyQueryToken = async (req, res, next) => {
-  const { token } = req.query;
-
-  try {
-    const decoded = jwt.verify(token, JWT_SECRET);
-    req.user = await User.findByPk(decoded.id);
-    next();
-  } catch (error) {
-    next();
-  }
 };
 const isAdmin = (req, res, next) => {
   try {
@@ -64,13 +33,16 @@ const isAdminOrFirstStartUp = async (req, res, next) => {
 
 const isOwnerOrAdmin = (model) => async (req, res, next) => {
   try {
-    const record = await model.findByPk(req.params.id);
+    const recordId = req.params.id ?? req.body?.id;
+    const record = recordId ? await model.findByPk(recordId) : null;
 
     if (!record) {
       return res.status(404).json({ error: "Not found" });
     }
 
-    if (req.user?.role === "admin" || record.userId === req.user?.id) {
+    const ownerId = record.UserId ?? record.userId;
+    if (req.user?.role === "admin" || ownerId === req.user?.id) {
+      req.ownedRecord = record;
       return next();
     }
 
@@ -81,10 +53,8 @@ const isOwnerOrAdmin = (model) => async (req, res, next) => {
 };
 
 export {
-  populateUser,
   isAuthenticated,
   isAdmin,
   isAdminOrFirstStartUp,
   isOwnerOrAdmin,
-  verifyQueryToken,
 };

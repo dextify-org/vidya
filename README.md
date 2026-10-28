@@ -60,51 +60,68 @@ VIDYA is a self-hosted media server built specifically for video lectures and ed
 
 ### Windows Installer (Recommended)
 
-Download the latest `VIDYA-x64.exe` installer from [GitHub Releases](https://github.com/dextify-org/vidya/releases) and run it. The installer bundles everything you need — Node.js runtime, server backend, web frontend, and the system tray application.
+Download the latest `VIDYA-x64.exe` installer from [GitHub Releases](https://github.com/dextify-org/vidya/releases) and run it. The installer is per-user, does not require administrator privileges, and stores the application under `%LOCALAPPDATA%\Programs\VIDYA`. Starting the tray application automatically with Windows is an explicit, unchecked installer option.
+
+The installer includes pre-built tray binaries. Review the [tray binary provenance notice](#tray-binary-provenance) before using or redistributing them.
 
 ### Docker
 
+Create a media directory or point `VIDYA_MEDIA_PATH` at an existing one, then build and start the checked-out source:
+
 ```bash
-docker compose up -d
+mkdir -p media
+VIDYA_MEDIA_PATH=/absolute/path/to/media docker compose up --build -d
 ```
 
 Or use `docker run` directly:
 
 ```bash
+docker build -t vidya:local .
+docker volume create vidya-data
 docker run -d \
   --name vidya \
-  -p 31415:31415 \
-  -v ./data:/data \
+  -p 127.0.0.1:31415:31415 \
+  -v vidya-data:/data \
   -v /path/to/your/media:/media:ro \
   -e VIDYA_DATA_PATH=/data \
   -e PORT=31415 \
+  --read-only \
+  --tmpfs /tmp:rw,nosuid,nodev,size=64m \
+  --cap-drop ALL \
+  --security-opt no-new-privileges \
   --restart unless-stopped \
-  ghcr.io/dextify-org/vidya:latest
+  vidya:local
 ```
 
 Then open `http://localhost:31415` in your browser.
 
 ### Docker Compose
 
-```yaml
-services:
-  vidya:
-    image: ghcr.io/dextify-org/vidya:latest
-    container_name: vidya
-    ports:
-      - "31415:31415"
-    volumes:
-      - ./data:/data
-      - /path/to/your/media:/media:ro
-    environment:
-      - VIDYA_DATA_PATH=/data
-      - PORT=31415
-    restart: unless-stopped
+The checked-in Compose configuration:
 
-volumes:
-  data:
-    driver: local
+- Builds the local checkout instead of pulling a mutable image.
+- Publishes the service on `127.0.0.1` only.
+- Stores application data in the `vidya-data` named volume.
+- Mounts media read-only from `VIDYA_MEDIA_PATH` (default: `./media`).
+- Runs with a read-only root filesystem, a temporary `/tmp`, no Linux capabilities, and `no-new-privileges`.
+
+To change the host-side port while keeping loopback-only access:
+
+```bash
+VIDYA_PORT=8080 docker compose up --build -d
 ```
+
+#### Explicit LAN access
+
+LAN access is disabled by default. To expose VIDYA on every host interface, opt in explicitly:
+
+```bash
+VIDYA_BIND_ADDRESS=0.0.0.0 \
+VIDYA_MEDIA_PATH=/absolute/path/to/media \
+docker compose up --build -d
+```
+
+Only enable this on a trusted network after completing initial setup. Apply host firewall rules and restrict access to the intended subnet. To bind one specific interface instead, set `VIDYA_BIND_ADDRESS` to that interface's IP address.
 
 ---
 
@@ -130,7 +147,7 @@ cd vidya
 ### Install Dependencies
 
 ```bash
-npm install
+npm ci
 ```
 
 This installs both frontend and backend dependencies (the project uses npm workspaces).
@@ -147,11 +164,11 @@ The `build-windows.ps1` script automates the entire Windows build process:
 
 **What the script does:**
 
-1. Auto-downloads the latest Node.js 22 LTS x64 binary into `node/` if `node\node.exe` is not already present
-2. Builds the React frontend (`npm run build` → `build/` folder)
-3. Cleans and creates a `staging/app/` directory
-4. Copies the backend into `staging/app/` (excluding `node_modules`)
-5. Installs production-only backend dependencies inside `staging/app/`
+1. Downloads the pinned Node.js 22.14.0 Windows x64 archive and verifies its SHA-256 checksum
+2. Installs the root workspace using `npm ci` and builds the React frontend
+3. Cleans and creates a `staging/backend/` directory
+4. Copies the backend and root workspace manifests into `staging/`
+5. Installs backend-only production dependencies using the root lockfile
 6. Runs NSIS to compile the installer (`VIDYA-x64.exe`)
 
 **Requirements:**
@@ -176,24 +193,25 @@ This creates a production-optimized React build in the `build/` directory.
 
 #### Step 2: Prepare the Staging Directory
 
-Create a `staging/app/` directory and copy the backend into it:
+Create `staging/backend/`, copy the backend into it, and copy the root workspace manifests:
 
 ```powershell
 # Remove old staging if exists
 Remove-Item -Recurse -Force staging -ErrorAction SilentlyContinue
 
 # Create staging directory
-New-Item -ItemType Directory -Path staging\app
+New-Item -ItemType Directory -Path staging\backend
 
 # Copy backend files (exclude node_modules)
-robocopy backend staging\app /E /XD node_modules /XF "*.log"
+robocopy backend staging\backend /E /XD node_modules /XF "*.log"
+Copy-Item package.json, package-lock.json staging
 ```
 
 #### Step 3: Install Production Dependencies
 
-```bash
-cd staging/app
-npm install --production
+```powershell
+cd staging
+npm ci --omit=dev --workspace backend --include-workspace-root=false
 cd ../..
 ```
 
@@ -220,16 +238,16 @@ tray/
 
 These binaries are pre-built and included in the repository. If you want to build the tray app from source, see the [Tray App](#tray-app-windows-system-tray) section below.
 
-#### Step 5: Ensure Node.js Binary Is Present
+#### Step 5: Prepare the Pinned Node.js Binary
 
-The `node/` folder must contain a Windows x64 Node.js binary:
+Run the download and checksum section in `build-windows.ps1`, or download `node-v22.14.0-win-x64.zip` from `nodejs.org` and verify its SHA-256 checksum before extraction:
 
+```powershell
+(Get-FileHash node-v22.14.0-win-x64.zip -Algorithm SHA256).Hash
+# Expected: 55B639295920B219BB2ACBCFA00F90393A2789095B7323F79475C9F34795F217
 ```
-node/
-└── node.exe    # Node.js v20 Windows x64 binary
-```
 
-Download from [nodejs.org](https://nodejs.org/en/download/) — use the Windows Binary (.zip) for x64, extract `node.exe`, and place it in the `node/` folder.
+Extract only `node.exe` into `node\`. NSIS deliberately packages only this file.
 
 #### Step 6: Build the Installer (NSIS)
 
@@ -240,9 +258,9 @@ Download from [nodejs.org](https://nodejs.org/en/download/) — use the Windows 
 
 This produces `VIDYA-x64.exe` — a full Windows installer that:
 
-- Installs to `C:\Program Files\VIDYA`
-- Creates Start Menu and Desktop shortcuts
-- Registers in Windows Add/Remove Programs
+- Installs to `%LOCALAPPDATA%\Programs\VIDYA` without elevation
+- Creates current-user Start Menu and Desktop shortcuts
+- Registers in the current user's Add/Remove Programs list, with optional current-user startup
 - Bundles Node.js runtime, backend, frontend build, and tray app
 - Stores user data in `%LOCALAPPDATA%\VIDYA`
 
@@ -265,9 +283,13 @@ Run the built image:
 ```bash
 docker run -d \
   --name vidya \
-  -p 31415:31415 \
-  -v ./data:/data \
+  -p 127.0.0.1:31415:31415 \
+  -v vidya-data:/data \
   -v /path/to/your/media:/media:ro \
+  --read-only \
+  --tmpfs /tmp:rw,nosuid,nodev,size=64m \
+  --cap-drop ALL \
+  --security-opt no-new-privileges \
   vidya
 ```
 
@@ -276,6 +298,12 @@ docker run -d \
 ## Tray App (Windows System Tray)
 
 The VIDYA tray application is a .NET 6.0 Windows Forms app that sits in the system tray and manages the Node.js backend process. Pre-built binaries are included in the `tray/` folder.
+
+### Tray Binary Provenance
+
+The tray source is not present in this repository. The checked-in `tray/` executables are consumed as pre-built artifacts, and this repository does not currently provide a reproducible build or a cryptographic link between those binaries and a source revision. The Windows build verifies the downloaded Node.js runtime, but it cannot establish the provenance of the tray binaries.
+
+For a higher-assurance build, audit and build the separate tray repository, then replace `tray/` with that output before running `build-windows.ps1`. Tracking tray source and reproducible binary verification in this repository remains a follow-up item.
 
 ### Building the Tray App from Source
 
@@ -394,7 +422,14 @@ The backend exposes a REST API at `http://localhost:31415/api/`:
 | Variable          | Default         | Description                              |
 | ----------------- | --------------- | ---------------------------------------- |
 | `VIDYA_DATA_PATH` | Repository root | Path to store database, keys, and assets |
+| `HOST`            | `127.0.0.1`     | Interface used by the backend listener   |
 | `PORT`            | `31415`         | Server port                              |
+| `CORS_ALLOWED_ORIGINS` | Empty | Comma-separated trusted cross-origin browser origins |
+| `SESSION_COOKIE_SECURE` | `false` | Set to `true` when serving through HTTPS |
+
+The container listens on `0.0.0.0` inside its isolated network namespace so Docker can forward traffic. Compose still publishes that port to host loopback only unless `VIDYA_BIND_ADDRESS` is explicitly changed.
+
+See [SECURITY.md](SECURITY.md) for authentication, dependency-audit, and tray-binary security notes.
 
 ### Data Storage
 

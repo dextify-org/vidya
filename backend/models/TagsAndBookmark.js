@@ -20,7 +20,7 @@ const TagsAndBookmark = sequelize.define(
     indexes: [
       {
         unique: true,
-        fields: ["lectureId", "type"],
+        fields: ["UserId", "lectureId", "type"],
       },
     ],
   }

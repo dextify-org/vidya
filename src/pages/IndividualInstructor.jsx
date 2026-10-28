@@ -5,8 +5,8 @@ import Cards from "../components/Cards/Cards";
 import { useEffect, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import axios from "../api/axiosInstance";
-import Loader from "../components/Loader/Loader.js";
-import Toast from "../components/Toast/Toast.js";
+import Loader from "../components/Loader/Loader.jsx";
+import Toast from "../components/Toast/Toast.jsx";
 import { useAuth } from "../context/AuthContext";
 const IndividualInstrucor = () => {
   const { id } = useParams();

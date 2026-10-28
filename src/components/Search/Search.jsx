@@ -2,7 +2,7 @@ import { AnimatePresence, motion } from "framer-motion";
 import React, { useState, useEffect, useRef } from "react";
 import axios from "../../api/axiosInstance.js";
 import { useNavigate } from "react-router-dom";
-import { SearchSolid } from "../../assets/index.js";
+import { SearchSolid } from "../../assets/index.jsx";
 
 const Search = () => {
   const [showSearch, setShowSearch] = useState(false);

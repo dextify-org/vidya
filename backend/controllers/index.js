@@ -1,5 +1,4 @@
 import {
-  register,
   scan,
   addCourseFolder,
   deleteFolder,
@@ -32,7 +31,6 @@ import getUserDashboardAnalytics from "./dashboardController.js";
 import { doSearch } from "./searchController.js";
 
 export {
-  register,
   scan,
   createUser,
   getAdminData,

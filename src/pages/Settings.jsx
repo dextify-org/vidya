@@ -69,6 +69,7 @@ const Settings = () => {
 };
 
 const ProfileSettings = ({ user }) => {
+  const [currentPass, setCurrentPass] = useState("");
   const [newPass, setNewPass] = useState("");
   const [confirmNewPass, setConfirmNewPass] = useState("");
   const [showToast, setShowToast] = useState(false);
@@ -78,7 +79,11 @@ const ProfileSettings = ({ user }) => {
   const handlePassChange = async () => {
     setShowToast(false);
 
-    if (newPass.length > 0 && confirmNewPass.length > 0) {
+    if (
+      currentPass.length > 0 &&
+      newPass.length > 0 &&
+      confirmNewPass.length > 0
+    ) {
       if (newPass !== confirmNewPass) {
         setToastType("error");
         setToastMessage("Passwords don't match");
@@ -97,6 +102,7 @@ const ProfileSettings = ({ user }) => {
         const response = await axios.post(
           "/api/auth/password-change",
           {
+            currentPassword: currentPass,
             newPassword: newPass,
           },
           { withCredentials: true }
@@ -105,6 +111,7 @@ const ProfileSettings = ({ user }) => {
         setToastType("success");
         setToastMessage("Password changed successfully");
         setShowToast(true);
+        setCurrentPass("");
         setNewPass("");
         setConfirmNewPass("");
       } catch (error) {
@@ -117,7 +124,7 @@ const ProfileSettings = ({ user }) => {
       }
     } else {
       setToastType("error");
-      setToastMessage("Please fill in both password fields");
+      setToastMessage("Please fill in all password fields");
       setShowToast(true);
     }
   };
@@ -135,11 +142,20 @@ const ProfileSettings = ({ user }) => {
         <div className="settings-title">Profile Settings</div>
         <div className="img-container">{user?.username}</div>
         <div className="password-form">
+          <label>Current Password</label>
+          <input
+            type="password"
+            className="password"
+            value={currentPass}
+            autoComplete="current-password"
+            onChange={(e) => setCurrentPass(e.target.value)}
+          />
           <label>New Password</label>
           <input
             type="password"
             className="password"
             value={newPass}
+            autoComplete="new-password"
             onChange={(e) => setNewPass(e.target.value)}
           />
           <label>Confirm New Password</label>
@@ -147,6 +163,7 @@ const ProfileSettings = ({ user }) => {
             type="password"
             className="password"
             value={confirmNewPass}
+            autoComplete="new-password"
             onChange={(e) => setConfirmNewPass(e.target.value)}
           />
           <div onClick={handlePassChange} className="change-password-button">

@@ -7,6 +7,7 @@ import {
   FilePdfSolid,
   World,
 } from "../../assets";
+import { createSandboxedHtml } from "../../utils/sandboxHtml.js";
 
 const FileRenderer = ({ fileType, fileSrc, fileName }) => {
   const [isHtmlRenderingRequested, setIsHtmlRenderingRequested] =
@@ -131,7 +132,13 @@ const FileRenderer = ({ fileType, fileSrc, fileName }) => {
                   HTML File Preview:
                 </p>
 
-                <div dangerouslySetInnerHTML={{ __html: htmlContent }} />
+                <iframe
+                  className="file-container-iframe"
+                  srcDoc={createSandboxedHtml(htmlContent)}
+                  sandbox=""
+                  referrerPolicy="no-referrer"
+                  title={`${fileName || "HTML File"} preview`}
+                />
               </div>
               <div className="file-container-button-group">
                 <button

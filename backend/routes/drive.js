@@ -1,11 +1,8 @@
 import { Router } from "express";
 import { promises as fs } from "fs";
 import path from "path";
-import { exec } from "child_process";
-import util from "util";
 import os from "os";
 import { isAdminOrFirstStartUp } from "../middleware/owner.js";
-const execPromise = util.promisify(exec);
 
 const router = Router();
 
@@ -60,41 +57,39 @@ const isValidPath = (basePath, targetPath) => {
 
 const getSystemDrives = async () => {
   if (isWindows) {
+    const driveLetters = "ABCDEFGHIJKLMNOPQRSTUVWXYZ".split("");
+    const drives = await Promise.all(
+      driveLetters.map(async (letter) => {
+        const drivePath = `${letter}:\\`;
+        try {
+          await fs.access(drivePath);
+          return {
+            path: drivePath,
+            label: `${letter}:`,
+            accessible: true,
+            type: "drive",
+          };
+        } catch {
+          return null;
+        }
+      }),
+    );
+    return drives.filter(Boolean);
+  }
+
+  if (os.platform() === "linux") {
     try {
-      const { stdout } = await execPromise("wmic logicaldisk get name");
-      const drives = stdout
-        .split("\n")
-        .slice(1)
-        .map((line) => line.trim())
-        .filter((line) => line.match(/^[A-Z]:$/))
-        .map((drive) => ({
-          path: `${drive}\\`,
-          label: drive,
-          accessible: true,
-          type: "drive",
-        }));
-      return drives;
-    } catch (error) {
-      console.error("Error getting Windows drives:", error);
-      return [
-        {
-          path: "C:\\",
-          label: "C:",
-          accessible: true,
-          type: "drive",
-        },
-      ];
-    }
-  } else {
-    try {
-      const { stdout } = await execPromise(
-        "cat /proc/mounts | grep '^/' | awk '{print $1 \" \" $2}'"
-      );
-      const mounts = stdout
+      const mountTable = await fs.readFile("/proc/mounts", "utf8");
+      const mounts = mountTable
         .split("\n")
         .filter((line) => line)
         .map((line) => {
-          const [device, mountPoint] = line.split(" ");
+          const [device, encodedMountPoint] = line.split(/\s+/);
+          const mountPoint = encodedMountPoint
+            ?.replaceAll("\\040", " ")
+            .replaceAll("\\011", "\t")
+            .replaceAll("\\012", "\n")
+            .replaceAll("\\134", "\\");
           return {
             path: mountPoint,
             label: device,
@@ -102,6 +97,7 @@ const getSystemDrives = async () => {
             type: "mount",
           };
         })
+        .filter((mount) => mount.label?.startsWith("/") && mount.path)
         .filter((mount) => {
           const excludePaths = [
             "/boot",
@@ -131,16 +127,23 @@ const getSystemDrives = async () => {
       return mounts;
     } catch (error) {
       console.error("Error getting Linux mount points:", error);
-      return [
-        {
-          path: "/",
-          label: "Root",
-          accessible: true,
-          type: "root",
-        },
-      ];
     }
   }
+
+  return [
+    {
+      path: os.homedir(),
+      label: "Home",
+      accessible: true,
+      type: "home",
+    },
+    {
+      path: "/",
+      label: "Root",
+      accessible: true,
+      type: "root",
+    },
+  ];
 };
 
 router.get("/drives", isAdminOrFirstStartUp, async (req, res) => {

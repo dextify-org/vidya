@@ -49,6 +49,17 @@ Examples:
 - Avoid unrelated refactoring in the same PR.
 - Add or update documentation where needed.
 
+## Packaging Changes
+
+For Docker or Windows packaging changes:
+
+- Keep Docker's default host publication loopback-only.
+- Preserve the non-root, read-only container runtime controls.
+- Use the root `package-lock.json` and npm workspaces for production installs.
+- Keep Windows installation and registry changes scoped to the current user.
+- Pin and verify downloaded build inputs.
+- Run `sh scripts/validate-packaging.sh` before opening a pull request.
+
 ## Reporting Bugs
 
 Please include:
