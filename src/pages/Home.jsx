@@ -122,7 +122,6 @@ const Home = ({ category }) => {
           initial={{ opacity: 0, x: -200 }}
           animate={{ opacity: 1, x: 0 }}
           exit={{ opacity: 0, x: 200 }}
-          className="home-content"
         >
           <div className="featured">
             <p className="pinned-title featured-title">FEATURED</p>
@@ -209,18 +208,10 @@ const Home = ({ category }) => {
             <div className="title-scroll-buttons">
               <p className="pinned-title">CONTINUE LEARNING</p>
               <div className="scroll-button">
-                <button
-                  className="left-scroll"
-                  onClick={scrollLeftContinue}
-                  aria-label="Scroll continue learning left"
-                >
+                <button className=" left-scroll" onClick={scrollLeftContinue}>
                   <ChevronRight />
                 </button>
-                <button
-                  className="right-scroll"
-                  onClick={scrollRightContinue}
-                  aria-label="Scroll continue learning right"
-                >
+                <button className=" right-scroll" onClick={scrollRightContinue}>
                   <ChevronRight />
                 </button>
               </div>
@@ -246,18 +237,10 @@ const Home = ({ category }) => {
             <div className="title-scroll-buttons">
               <p className="pinned-title">LATEST COURSES</p>
               <div className="scroll-button">
-                <button
-                  className="left-scroll"
-                  onClick={scrollLeft}
-                  aria-label="Scroll latest courses left"
-                >
+                <button className=" left-scroll" onClick={scrollLeft}>
                   <ChevronRight />
                 </button>
-                <button
-                  className="right-scroll"
-                  onClick={scrollRight}
-                  aria-label="Scroll latest courses right"
-                >
+                <button className=" right-scroll" onClick={scrollRight}>
                   <ChevronRight />
                 </button>
               </div>

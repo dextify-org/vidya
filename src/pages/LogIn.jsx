@@ -30,49 +30,32 @@ const LogIn = () => {
       )}
 
       <div className="login-container">
-        <form
-          aria-busy={isSubmitting}
-          className="login-inner"
-          onSubmit={(event) => {
-            event.preventDefault();
-            handleFinish();
-          }}
-        >
+        <div className="login-inner">
           <div className="admin-setup">
             <div className="username-title">Log In</div>
           </div>
           <div className="input-container">
-            <label className="username-label" htmlFor="login-username">
-              Username
-            </label>
+            <div className="username-label">Username</div>
             <div className="username-input">
               <input
-                autoComplete="username"
-                id="login-username"
                 onChange={(e) => setUsernameInput(e.target.value)}
                 value={usernameInput}
                 type="text"
               />
             </div>
-            <label className="password-label" htmlFor="login-password">
-              Password
-            </label>
+            <div className="password-label">Password</div>
             <div className="password-input">
               <input
-                autoComplete="current-password"
-                id="login-password"
                 onChange={(e) => setPasswordInput(e.target.value)}
                 value={passwordInput}
                 type="password"
+                name=""
+                id=""
               />
             </div>
           </div>
-          <div className="login-button-container">
-            <button
-              className="glass-button"
-              disabled={isSubmitting}
-              type="submit"
-            >
+          <div className="login-button-container" onClick={handleFinish}>
+            <div className="glass-button">
               <AnimatePresence mode="wait">
                 {isSubmitting ? (
                   // Spinner animation
@@ -112,9 +95,9 @@ const LogIn = () => {
                   </motion.span>
                 )}
               </AnimatePresence>
-            </button>
+            </div>
           </div>
-        </form>
+        </div>
       </div>
     </>
   );
