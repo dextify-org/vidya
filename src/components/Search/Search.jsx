@@ -19,6 +19,17 @@ const Search = () => {
   const navigate = useNavigate();
   const searchTimeout = useRef(null);
   const searchWrapperInnerRef = useRef(null);
+  const searchTriggerRef = useRef(null);
+
+  const openSearch = () => {
+    searchTriggerRef.current = document.activeElement;
+    setShowSearch(true);
+  };
+
+  const closeSearch = () => {
+    setShowSearch(false);
+    requestAnimationFrame(() => searchTriggerRef.current?.focus());
+  };
 
   const performSearch = async (term) => {
     if (term.trim() === "") {
@@ -88,18 +99,35 @@ const Search = () => {
         searchWrapperInnerRef.current &&
         !searchWrapperInnerRef.current.contains(event.target)
       ) {
-        setShowSearch(false);
+        closeSearch();
       }
     };
 
-    // Add event listener when search is shown
+    const handleKeyDown = (event) => {
+      if (event.key === "Escape") {
+        closeSearch();
+      }
+    };
+
     if (showSearch) {
       document.addEventListener("mousedown", handleClickOutside);
+      document.addEventListener("keydown", handleKeyDown);
     }
 
-    // Clean up event listener
     return () => {
       document.removeEventListener("mousedown", handleClickOutside);
+      document.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [showSearch]);
+
+  useEffect(() => {
+    if (!showSearch) return undefined;
+
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+
+    return () => {
+      document.body.style.overflow = previousOverflow;
     };
   }, [showSearch]);
 
@@ -117,52 +145,59 @@ const Search = () => {
 
   return (
     <>
-      <div className="search-placeholder" onClick={() => setShowSearch(true)}>
-        <div style={{ marginLeft: "1rem", opacity: ".7" }}>
+      <button
+        aria-label="Open search"
+        className="search-placeholder"
+        onClick={openSearch}
+        type="button"
+      >
+        <span className="search-placeholder-label">
           Search courses, lectures, & more...
-        </div>
-        <svg
-          className="search-icon"
-          viewBox="0 0 24 24"
-          fill="none"
-          xmlns="http://www.w3.org/2000/svg"
-        >
-          <path
-            d="M11 2C15.968 2 20 6.032 20 11C20 15.968 15.968 20 11 20C6.032 20 2 15.968 2 11C2 6.032 6.032 2 11 2ZM11 18C14.8675 18 18 14.8675 18 11C18 7.1325 14.8675 4 11 4C7.1325 4 4 7.1325 4 11C4 14.8675 7.1325 18 11 18ZM19.4853 18.0711L22.3137 20.8995L20.8995 22.3137L18.0711 19.4853L19.4853 18.0711Z"
-            fill="#0A2463"
-          />
-        </svg>
-      </div>
-      <div
+        </span>
+        <span className="search-icon">
+          <SearchSolid />
+        </span>
+      </button>
+      <button
+        aria-label="Open search"
         className="search-placeholder-icon"
-        onClick={() => setShowSearch(true)}
+        onClick={openSearch}
+        type="button"
       >
         <SearchSolid />
-      </div>
+      </button>
       {showSearch && (
-        <div className="overlay">
+        <div className="overlay" role="presentation">
           <div className="search-wrapper">
-            <div className="search-wrapper-inner" ref={searchWrapperInnerRef}>
+            <div
+              aria-label="Search"
+              aria-modal="true"
+              className="search-wrapper-inner"
+              ref={searchWrapperInnerRef}
+              role="dialog"
+            >
               <div className="search">
+                <label className="visually-hidden" htmlFor="global-search">
+                  Search courses, lectures, and more
+                </label>
                 <input
+                  aria-controls="global-search-results"
+                  aria-expanded={showResults && hasResults}
+                  aria-haspopup="listbox"
+                  aria-label="Search courses, lectures, and more"
+                  autoComplete="off"
+                  autoFocus
+                  id="global-search"
+                  role="combobox"
                   type="text"
                   className="search-input"
                   value={searchTerm}
                   onChange={handleSearch}
                   placeholder="Search courses, lectures, & more..."
-                  autoFocus
                 />
-                <svg
-                  className="search-icon"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  xmlns="http://www.w3.org/2000/svg"
-                >
-                  <path
-                    d="M11 2C15.968 2 20 6.032 20 11C20 15.968 15.968 20 11 20C6.032 20 2 15.968 2 11C2 6.032 6.032 2 11 2ZM11 18C14.8675 18 18 14.8675 18 11C18 7.1325 14.8675 4 11 4C7.1325 4 4 7.1325 4 11C4 14.8675 7.1325 18 11 18ZM19.4853 18.0711L22.3137 20.8995L20.8995 22.3137L18.0711 19.4853L19.4853 18.0711Z"
-                    fill="#0A2463"
-                  />
-                </svg>
+                <span className="search-icon">
+                  <SearchSolid />
+                </span>
               </div>
               <AnimatePresence>
                 {showResults && hasResults && (
@@ -176,23 +211,30 @@ const Search = () => {
                       damping: 20,
                     }}
                     className="search-results"
+                    id="global-search-results"
+                    role="listbox"
                   >
                     {searchResults.courses &&
                       searchResults.courses.length > 0 && (
                         <div className="result-section">
                           <div className="result-heading">Courses</div>
                           {searchResults.courses.map((course) => (
-                            <div
+                            <button
                               key={course.id}
                               className="search-results-list"
-                              onClick={() => navigate(`/courses/${course.id}`)}
+                              onClick={() => {
+                                navigate(`/courses/${course.id}`);
+                                closeSearch();
+                              }}
+                              role="option"
+                              type="button"
                             >
                               <div className="result-item">
                                 <span className="result-name">
                                   {course.name}
                                 </span>
                               </div>
-                            </div>
+                            </button>
                           ))}
                         </div>
                       )}
@@ -201,15 +243,17 @@ const Search = () => {
                         <div className="result-section">
                           <div className="result-heading">Lectures</div>
                           {searchResults.lectures.map((lecture) => (
-                            <div
+                            <button
                               key={lecture.id}
                               className="search-results-list"
                               onClick={() => {
                                 navigate(`/course/play/${lecture.courseId}`, {
                                   state: lecture.id,
                                 });
-                                setShowResults(false);
+                                closeSearch();
                               }}
+                              role="option"
+                              type="button"
                             >
                               <div className="result-item">
                                 <span className="result-name">
@@ -222,7 +266,7 @@ const Search = () => {
                                   </span>
                                 </div>
                               </div>
-                            </div>
+                            </button>
                           ))}
                         </div>
                       )}
@@ -231,15 +275,17 @@ const Search = () => {
                         <div className="result-section">
                           <div className="result-heading">Sections</div>
                           {searchResults.sections.map((section) => (
-                            <div
+                            <button
                               key={section.id}
                               className="search-results-list"
                               onClick={() => {
                                 navigate(`/courses/${section.courseId}`, {
                                   state: section.id,
                                 });
-                                setShowResults(false);
+                                closeSearch();
                               }}
+                              role="option"
+                              type="button"
                             >
                               <div className="result-item">
                                 <span className="result-name">
@@ -253,7 +299,7 @@ const Search = () => {
                                   </div>
                                 )}
                               </div>
-                            </div>
+                            </button>
                           ))}
                         </div>
                       )}
@@ -262,22 +308,24 @@ const Search = () => {
                         <div className="result-section">
                           <div className="result-heading">Instructors</div>
                           {searchResults.instructors.map((instructor) => (
-                            <div
+                            <button
                               key={instructor.id}
                               className="search-results-list"
                               onClick={() => {
                                 navigate(`/instructor/${instructor.id}`, {
                                   state: instructor.id,
                                 });
-                                setShowResults(false);
+                                closeSearch();
                               }}
+                              role="option"
+                              type="button"
                             >
                               <div className="result-item">
                                 <span className="result-name">
                                   {instructor.name}
                                 </span>
                               </div>
-                            </div>
+                            </button>
                           ))}
                         </div>
                       )}
@@ -286,20 +334,22 @@ const Search = () => {
                         <div className="result-section">
                           <div className="result-heading">Categories</div>
                           {searchResults.categories.map((category) => (
-                            <div
+                            <button
                               key={category.id}
                               className="search-results-list"
                               onClick={() => {
                                 navigate(`/category/${category.id}`);
-                                setShowResults(false);
+                                closeSearch();
                               }}
+                              role="option"
+                              type="button"
                             >
                               <div className="result-item">
                                 <span className="result-name">
                                   {category.name}
                                 </span>
                               </div>
-                            </div>
+                            </button>
                           ))}
                         </div>
                       )}

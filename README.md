@@ -499,6 +499,136 @@ VIDYA_ALLOWED_HOSTS=learning.example.com npm run start
 
 ---
 
+## Theme System
+
+VIDYA's display settings are a client-side theme system. Preferences are stored
+in the browser's `localStorage`, so they apply to the current browser profile
+without changing server data or other users' settings.
+
+### Available Preferences
+
+The Display section under Settings provides:
+
+- Design: Original, Theme 2, or Theme 3
+- Theme color: Coral, Ocean, Forest, or Violet
+- Theme mode: Light or Dark
+- Font: Poppins, Montserrat, Inter, or Lato
+- Text size: Small, Medium, or Large
+- Navigation: Horizontal, Vertical, or Vertical Compact
+- Content width: Container or Full width
+- Background: Gradient, image, or solid color
+- Page transitions: Enabled or Disabled
+
+Selecting a design applies that design's recommended navigation, content, and
+background defaults. Those preferences remain independently configurable
+afterward:
+
+- Original: horizontal navigation, container content, gradient background
+- Theme 2: vertical navigation, full-width content, solid background
+- Theme 3: horizontal navigation, container content, solid background
+
+On narrow screens, vertical navigation automatically falls back to the existing
+menu drawer. Theme 3's top navigation uses the same fallback.
+
+### Theme Module Structure
+
+```
+src/
+├── theme/
+│   ├── ThemeContext.jsx         # Preference state, DOM attributes, persistence
+│   └── themeOptions.js          # Defaults and settings options
+├── components/
+│   ├── Navigation/
+│   │   ├── AppNavigation.jsx    # Selects the active navigation disposition
+│   │   ├── SideNavigation.jsx   # Desktop vertical and compact navigation
+│   │   └── TopNavigation.jsx    # Theme 3 horizontal navigation
+│   └── Settings/
+│       └── ThemePreferences.jsx # Display settings controls
+└── style.css                    # Theme tokens and layout/style variants
+```
+
+`ThemeContext` applies each preference as a `data-theme-*` attribute to the
+root `<html>` element. CSS then selects the appropriate tokens and layout:
+
+```html
+<html
+  data-theme-design="theme3"
+  data-theme-color="ocean"
+  data-theme-mode="dark"
+  data-theme-font="inter"
+  data-theme-font-size="medium"
+  data-theme-navigation="horizontal"
+  data-theme-content="container"
+  data-theme-background="solid"
+  data-theme-transitions="disabled"
+>
+```
+
+### Add a Theme Color
+
+1. Add an option to `THEME_OPTIONS.colors` in
+   `src/theme/themeOptions.js`:
+
+   ```js
+   { value: "amber", label: "Amber", swatch: "#d97706" }
+   ```
+
+2. Add the matching token overrides in `src/style.css`:
+
+   ```css
+   html[data-theme-color="amber"] {
+     --accent: #d97706;
+     --focus-ring: rgba(217, 119, 6, 0.42);
+     --interactive: #92400e;
+   }
+   ```
+
+3. Check the palette in both light and dark modes. The accent color must remain
+   distinguishable from the surface and meet normal-text contrast requirements
+   where it is used as text.
+
+### Add a Design Preset
+
+1. Add the layout defaults to `DESIGN_PRESETS`.
+2. Add the selectable design to `THEME_OPTIONS.designs`.
+3. Define design tokens and component rules under
+   `html[data-theme-design="<value>"]`.
+4. Keep navigation, content, and background rules on their own data attributes
+   when they are not intrinsic to the design.
+
+For an entirely new preference:
+
+1. Add its default value to `DEFAULT_THEME_PREFERENCES`.
+2. Add its selectable values to `THEME_OPTIONS`.
+3. Render a `PreferenceGroup` in `ThemePreferences.jsx`.
+4. Add CSS using the generated `data-theme-<preference>` selector.
+
+The context automatically persists any key included in
+`DEFAULT_THEME_PREFERENCES`.
+
+### Styling Conventions
+
+Use the semantic tokens in `src/style.css` for theme-aware work instead of
+hard-coded colors:
+
+```css
+color: var(--text-primary);
+background: var(--surface);
+border-color: var(--border);
+color: var(--accent);
+```
+
+The primary tokens are `--app-background`, `--text-primary`,
+`--text-muted`, `--accent`, `--interactive`, `--surface`,
+`--surface-subtle`, `--surface-strong`, `--border`, and `--focus-ring`.
+
+When adding a themed component, verify every design preset, light and dark
+mode, all color palettes, and the mobile layout. Avoid storing theme
+preferences in the backend unless per-account, cross-browser preferences are
+an explicit product requirement.
+
+---
+
 ### Development Guidelines
 
 - Follow existing code style and conventions

@@ -26,9 +26,12 @@ const Toast = ({ message, type = "success", duration = 3000, onClose }) => {
 
   return isVisible ? (
     <div
+      aria-atomic="true"
+      aria-live={type === "error" ? "assertive" : "polite"}
       onMouseEnter={() => setShowButton(true)}
       onMouseLeave={() => setShowButton(false)}
       className={`toast animate-in`}
+      role={type === "error" ? "alert" : "status"}
     >
       <span className={`toast-icon ${type}`}>
         {type === "success" && <CheckCircleSolid />}
@@ -38,11 +41,14 @@ const Toast = ({ message, type = "success", duration = 3000, onClose }) => {
       </span>
       <span>{message}</span>
 
-      {showButton && (
-        <button onClick={handleClose} className="close-btn">
-          ×
-        </button>
-      )}
+      <button
+        aria-label="Dismiss notification"
+        className={`close-btn${showButton ? " is-visible" : ""}`}
+        onClick={handleClose}
+        type="button"
+      >
+        ×
+      </button>
     </div>
   ) : null;
 };

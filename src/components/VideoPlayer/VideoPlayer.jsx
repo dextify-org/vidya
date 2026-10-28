@@ -58,14 +58,6 @@ const Controls = memo(
     const [showSubtitlesMenu, setShowSubtitlesMenu] = useState(false);
     const progress = (currentTime / duration) * 100 || 0;
 
-    const handleProgressClick = (e) => {
-      const progressBar = e.currentTarget;
-      const rect = progressBar.getBoundingClientRect();
-      const clickPosition = (e.clientX - rect.left) / rect.width;
-      const newTime = clickPosition * duration;
-      onSeek(newTime);
-    };
-
     const handleCaptionClick = () => {
       setShowSubtitlesMenu(!showSubtitlesMenu);
     };
@@ -77,7 +69,7 @@ const Controls = memo(
 
     return (
       <div className="video-controls">
-        <div className="progress-container" onClick={handleProgressClick}>
+        <div className="progress-container">
           <div className="progress-bar">
             <div className="buffer-bar" style={{ width: `${buffered}%` }}></div>
             <div
@@ -85,44 +77,74 @@ const Controls = memo(
               style={{ width: `${progress}%` }}
             ></div>
           </div>
+          <input
+            aria-label="Video position"
+            className="progress-seek"
+            max={duration || 0}
+            min="0"
+            onChange={(event) => onSeek(Number(event.target.value))}
+            step="0.1"
+            type="range"
+            value={Math.min(currentTime, duration || 0)}
+          />
         </div>
         <div className="controls-main">
           <div className="controls-left">
-            <div
+            <button
+              aria-label="Previous lecture"
               onClick={onPreviousVideo}
+              disabled={!isPrevVideo}
               style={{ opacity: isPrevVideo ? "" : "0.7" }}
               className="control-button previous-video"
+              type="button"
             >
               <SkipPrevious />
-            </div>
-            <div
+            </button>
+            <button
+              aria-label="Skip backward"
               onClick={onSkipBackward}
               className="control-button skip-backward"
+              type="button"
             >
               <Rewind />
-            </div>
-            <div onClick={onPlayPause} className="control-button play-pause">
+            </button>
+            <button
+              aria-label={isPlaying ? "Pause" : "Play"}
+              className="control-button play-pause"
+              onClick={onPlayPause}
+              type="button"
+            >
               {isPlaying ? <Pause /> : <Play />}
-            </div>
-            <div
+            </button>
+            <button
+              aria-label="Skip forward"
               onClick={onSkipForward}
               className="control-button skip-forward"
+              type="button"
             >
               <FastForward />
-            </div>
-            <div
+            </button>
+            <button
+              aria-label="Next lecture"
               onClick={isNextVideo ? onNextVideo : undefined}
+              disabled={!isNextVideo}
               style={{ opacity: isNextVideo ? "" : "0.7" }}
               className="control-button skip-next"
+              type="button"
             >
               <SkipNext />
-            </div>
+            </button>
             <div
               className="volume-container"
               onMouseEnter={() => setIsVolumeSliderVisible(true)}
               onMouseLeave={() => setIsVolumeSliderVisible(false)}
             >
-              <div onClick={onMute} className="control-button">
+              <button
+                aria-label={isMuted ? "Unmute" : "Mute"}
+                className="control-button"
+                onClick={onMute}
+                type="button"
+              >
                 {isMuted ? (
                   <VolumeMuteSolid />
                 ) : volume === 0 ? (
@@ -132,11 +154,12 @@ const Controls = memo(
                 ) : (
                   <VolumeFullSolid />
                 )}
-              </div>
+              </button>
               <AnimatePresence>
                 {isVolumeSliderVisible && (
                   <div className="volume-slider">
                     <motion.input
+                      aria-label="Volume"
                       initial={{ width: 0 }}
                       animate={{ width: "5rem" }}
                       exit={{ width: 0 }}
@@ -158,19 +181,26 @@ const Controls = memo(
             </div>
           </div>
           <div className="controls-right">
-            <div onClick={onAutoplayToggle} className="control-button autoplay">
+            <button
+              aria-label={isAutoplayOn ? "Disable autoplay" : "Enable autoplay"}
+              className="control-button autoplay"
+              onClick={onAutoplayToggle}
+              type="button"
+            >
               {isAutoplayOn ? <ToggleRight /> : <ToggleLeft />}
-            </div>
+            </button>
             <div
               className="subtitles-container"
               style={{ position: "relative" }}
             >
-              <div
+              <button
+                aria-label="Choose subtitles"
                 onClick={handleCaptionClick}
                 className="control-button caption"
+                type="button"
               >
                 {isCaptionOn ? <SolidCaptions /> : <Captions />}
-              </div>
+              </button>
               <AnimatePresence>
                 {showSubtitlesMenu && (
                   <motion.div
@@ -179,7 +209,7 @@ const Controls = memo(
                     exit={{ opacity: 0, y: 10 }}
                     className="subtitles-menu"
                   >
-                    <div
+                    <button
                       className="subtitle-option"
                       style={{
                         padding: "4px 8px",
@@ -193,12 +223,13 @@ const Controls = memo(
                         marginBottom: "5px",
                       }}
                       onClick={() => handleSubtitleSelect(null, null)}
+                      type="button"
                     >
                       Off
-                    </div>
+                    </button>
                     {subtitles && subtitles.length > 0 ? (
                       subtitles.map((subtitle, index) => (
-                        <div
+                        <button
                           key={index}
                           className="subtitle-option"
                           style={{
@@ -221,9 +252,10 @@ const Controls = memo(
                               subtitle.pathId
                             )
                           }
+                          type="button"
                         >
                           {subtitle.language}
-                        </div>
+                        </button>
                       ))
                     ) : (
                       <div
@@ -240,19 +272,26 @@ const Controls = memo(
                 )}
               </AnimatePresence>
             </div>
-            <div
+            <button
+              aria-label={`Playback speed ${playbackSpeed} times`}
               onClick={() =>
                 onPlaybackSpeedChange(
                   playbackSpeed >= 2 ? 0.5 : playbackSpeed + 0.5
                 )
               }
               className="control-button playback-speed"
+              type="button"
             >
               {playbackSpeed} X
-            </div>
-            <div onClick={onFullScreen} className="control-button">
+            </button>
+            <button
+              aria-label={isFullScreen ? "Exit fullscreen" : "Enter fullscreen"}
+              className="control-button"
+              onClick={onFullScreen}
+              type="button"
+            >
               {isFullScreen ? <ExitFullscreen /> : <Fullscreen />}
-            </div>
+            </button>
           </div>
         </div>
       </div>

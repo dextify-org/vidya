@@ -21,6 +21,7 @@ const PreNav = ({ name, progress }) => {
   const navigate = useNavigate();
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const sidebarRef = useRef(null);
+  const menuButtonRef = useRef(null);
   const handleBack = () => navigate(-1);
   const handleHome = () => navigate("/");
   const handleCategories = () => navigate("/categories");
@@ -35,55 +36,117 @@ const PreNav = ({ name, progress }) => {
   const isRootPage = location.pathname === "/";
 
   const toggleSidebar = () => {
-    setIsSidebarOpen(!isSidebarOpen);
+    setIsSidebarOpen((isOpen) => !isOpen);
   };
 
   useEffect(() => {
+    if (!isSidebarOpen) {
+      return undefined;
+    }
+
+    const menuButton = menuButtonRef.current;
+    const focusableSelector =
+      'button:not([disabled]), a[href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
+
     const handleClickOutside = (event) => {
-      if (sidebarRef.current && !sidebarRef.current.contains(event.target)) {
+      if (
+        sidebarRef.current &&
+        !sidebarRef.current.contains(event.target) &&
+        !menuButton?.contains(event.target)
+      ) {
         setIsSidebarOpen(false);
       }
     };
 
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => {
-      document.removeEventListener("mousedown", handleClickOutside);
+    const handleKeyDown = (event) => {
+      if (event.key === "Escape") {
+        event.preventDefault();
+        setIsSidebarOpen(false);
+        return;
+      }
+
+      if (event.key !== "Tab" || !sidebarRef.current) {
+        return;
+      }
+
+      const focusableElements = Array.from(
+        sidebarRef.current.querySelectorAll(focusableSelector),
+      );
+      const firstElement = focusableElements[0];
+      const lastElement = focusableElements[focusableElements.length - 1];
+
+      if (!firstElement || !lastElement) {
+        return;
+      }
+
+      if (event.shiftKey && document.activeElement === firstElement) {
+        event.preventDefault();
+        lastElement.focus();
+      } else if (!event.shiftKey && document.activeElement === lastElement) {
+        event.preventDefault();
+        firstElement.focus();
+      }
     };
-  }, []);
+
+    const focusSidebar = window.requestAnimationFrame(() => {
+      sidebarRef.current?.querySelector(focusableSelector)?.focus();
+    });
+
+    document.addEventListener("mousedown", handleClickOutside);
+    document.addEventListener("keydown", handleKeyDown);
+
+    return () => {
+      window.cancelAnimationFrame(focusSidebar);
+      document.removeEventListener("mousedown", handleClickOutside);
+      document.removeEventListener("keydown", handleKeyDown);
+      menuButton?.focus();
+    };
+  }, [isSidebarOpen]);
 
   return (
     <>
-      <div className="pre-nav">
+      <div className={`pre-nav${isRootPage ? " is-root-page" : ""}`}>
         <div className="left-group">
           <AnimatePresence>
             {!isRootPage && (
               <>
-                <div
+                <button
+                  aria-label="Go back"
                   key="back-button"
                   className="navbar-btn"
                   onClick={handleBack}
+                  type="button"
                 >
                   <div className="svg-div">
                     <ArrowBack />
                   </div>
-                </div>
-                <div
+                </button>
+                <button
+                  aria-label="Go home"
                   key="home-button"
                   className="navbar-btn"
                   onClick={handleHome}
+                  type="button"
                 >
                   <div className="svg-div">
                     <HomeAlt2 />
                   </div>
-                </div>
+                </button>
               </>
             )}
           </AnimatePresence>
-          <div className="menu-bar navbar-btn" onClick={toggleSidebar}>
+          <button
+            ref={menuButtonRef}
+            aria-expanded={isSidebarOpen}
+            aria-label={isSidebarOpen ? "Close navigation" : "Open navigation"}
+            className="menu-bar navbar-btn"
+            onClick={toggleSidebar}
+            type="button"
+          >
             <div className="svg-div">
               <Menu />
             </div>
-          </div>
+          </button>
           <div className="pre-nav-name">{name}</div>
         </div>
         <div className="search-bar">
@@ -94,12 +157,14 @@ const PreNav = ({ name, progress }) => {
             {progress ? (
               progress
             ) : (
-              <span
-                style={{ cursor: "pointer" }}
+              <button
+                aria-label="Open profile settings"
+                className="profile-button"
                 onClick={() => navigate("/settings")}
+                type="button"
               >
                 <User />
-              </span>
+              </button>
             )}
           </div>
         </div>
@@ -118,96 +183,104 @@ const PreNav = ({ name, progress }) => {
         )}
       </AnimatePresence>
 
-      <motion.div
-        ref={sidebarRef}
-        className="sidebar"
-        initial={{ x: "-100%" }}
-        animate={{ x: isSidebarOpen ? 0 : "-120%" }}
-        transition={{
-          type: "spring",
-          stiffness: 300,
-          damping: 20,
-        }}
-      >
-        <div className="lectures">
-          <div className="lecture-label">Courses</div>
+      <AnimatePresence>
+        {isSidebarOpen && (
           <motion.div
-            className="lecture-categories"
-            whileHover={{ scale: 1.1 }}
-            whileTap={{ scale: 0.95 }}
-            style={{ color: "#0a2463" }}
-            onClick={handleCourses}
+            ref={sidebarRef}
+            aria-label="Main navigation"
+            aria-modal="true"
+            className="sidebar"
+            role="dialog"
+            initial={{ x: "-100%" }}
+            animate={{ x: 0 }}
+            exit={{ x: "-120%" }}
+            transition={{
+              type: "spring",
+              stiffness: 300,
+              damping: 20,
+            }}
           >
-            <div className="svg-div">
-              <ChalkboardSolid />
+            <div className="lectures">
+              <div className="lecture-label">Courses</div>
+              <motion.button
+                className="lecture-categories"
+                whileHover={{ scale: 1.1 }}
+                whileTap={{ scale: 0.95 }}
+                onClick={handleCourses}
+                type="button"
+              >
+                <div className="svg-div">
+                  <ChalkboardSolid />
+                </div>
+                All Courses
+              </motion.button>
+              <motion.button
+                className="lecture-categories"
+                whileHover={{ scale: 1.1 }}
+                whileTap={{ scale: 0.95 }}
+                onClick={handleCategories}
+                type="button"
+              >
+                <div className="svg-div">
+                  <CategoryAlt />
+                </div>
+                Categories
+              </motion.button>
+              <motion.button
+                className="lecture-instructor"
+                whileHover={{ scale: 1.1 }}
+                whileTap={{ scale: 0.95 }}
+                onClick={handleInstructor}
+                type="button"
+              >
+                <div className="svg-div">
+                  <GraduationSolid />
+                </div>
+                Instructors
+              </motion.button>
             </div>
-            All Courses
-          </motion.div>
-          <motion.div
-            className="lecture-categories"
-            whileHover={{ scale: 1.1 }}
-            whileTap={{ scale: 0.95 }}
-            style={{ color: "#0a2463" }}
-            onClick={handleCategories}
-          >
-            <div className="svg-div">
-              <CategoryAlt />
+            <div className="user">
+              <div className="user-label">User</div>
+              <motion.button
+                className="dashboard-nav"
+                whileHover={{ scale: 1.1 }}
+                whileTap={{ scale: 0.95 }}
+                onClick={handleDashboard}
+                type="button"
+              >
+                <div className="svg-div">
+                  <DashboardSolid />
+                </div>
+                Dashboard
+              </motion.button>
+              <motion.button
+                className="settings"
+                whileHover={{ scale: 1.1 }}
+                whileTap={{ scale: 0.95 }}
+                onClick={handleSettings}
+                type="button"
+              >
+                <div className="svg-div">
+                  <Cog />
+                </div>
+                Settings
+              </motion.button>
+              <motion.button
+                className="log-out"
+                whileHover={{ scale: 1.1 }}
+                whileTap={{ scale: 0.95 }}
+                onClick={handleLogOut}
+                type="button"
+              >
+                <div className="svg-div">
+                  <LogOutCircle />
+                </div>
+                Log Out
+              </motion.button>
             </div>
-            Categories
           </motion.div>
-          <motion.div
-            className="lecture-instructor"
-            whileHover={{ scale: 1.1 }}
-            whileTap={{ scale: 0.95 }}
-            style={{ color: "#0a2463" }}
-            onClick={handleInstructor}
-          >
-            <div className="svg-div">
-              <GraduationSolid />
-            </div>
-            Instructors
-          </motion.div>
-        </div>
-        <div className="user">
-          <div className="user-label">User</div>
-          <motion.div
-            className="dashboard-nav"
-            whileHover={{ scale: 1.1 }}
-            whileTap={{ scale: 0.95 }}
-            style={{ color: "#0a2463" }}
-            onClick={handleDashboard}
-          >
-            <div className="svg-div">
-              <DashboardSolid />
-            </div>
-            Dashboard
-          </motion.div>
-          <motion.div
-            className="settings"
-            whileHover={{ scale: 1.1 }}
-            whileTap={{ scale: 0.95 }}
-            style={{ color: "#0a2463" }}
-            onClick={handleSettings}
-          >
-            <div className="svg-div">
-              <Cog />
-            </div>
-            Settings
-          </motion.div>
-          <motion.div
-            className="log-out"
-            whileHover={{ scale: 1.1 }}
-            whileTap={{ scale: 0.95 }}
-            style={{ color: "#0a2463" }}
-            onClick={handleLogOut}
-          >
-            <div className="svg-div">
-              <LogOutCircle />
-            </div>
-            Log Out
-          </motion.div>
-        </div>
-      </motion.div>
+        )}
+      </AnimatePresence>
     </>
   );
 };
