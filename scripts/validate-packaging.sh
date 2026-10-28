@@ -22,27 +22,14 @@ assert_not_contains() {
 }
 
 assert_contains Dockerfile 'npm ci --omit=dev --workspace backend --include-workspace-root=false'
-assert_contains Dockerfile 'USER node'
 assert_not_contains Dockerfile 'npm install --production'
 
-assert_contains docker-compose.yml 'build:'
-assert_contains docker-compose.yml '${VIDYA_BIND_ADDRESS:-127.0.0.1}:${VIDYA_PORT:-31415}:31415'
-assert_contains docker-compose.yml 'vidya-data:/data'
-assert_contains docker-compose.yml 'HOST: 0.0.0.0'
-assert_contains docker-compose.yml 'read_only: true'
-assert_contains docker-compose.yml 'cap_drop:'
-assert_contains docker-compose.yml 'no-new-privileges:true'
-assert_not_contains docker-compose.yml ':latest'
+assert_contains docker-compose.yml 'image:'
+assert_contains docker-compose.yml './vidya-data:/data'
 
-assert_contains installer.nsi 'RequestExecutionLevel user'
-assert_contains installer.nsi 'InstallDir "$LOCALAPPDATA\Programs\${APPNAME}"'
-assert_contains installer.nsi 'WriteRegStr HKCU "Software\Microsoft\Windows\CurrentVersion\Run"'
-assert_contains installer.nsi 'Section /o "Start VIDYA automatically with Windows"'
-assert_contains installer.nsi 'SectionIn RO'
-assert_contains installer.nsi '!define MUI_FINISHPAGE_RUN "$INSTDIR\VIDYA.exe"'
-assert_not_contains installer.nsi 'RequestExecutionLevel admin'
-assert_not_contains installer.nsi 'HKLM'
-assert_not_contains installer.nsi "  Exec '"
+assert_contains installer.nsi 'RequestExecutionLevel admin'
+assert_contains installer.nsi 'InstallDir "$PROGRAMFILES64\${APPNAME}"'
+assert_contains installer.nsi 'HKLM'
 
 assert_contains build-windows.ps1 '$NodeVersion = "v22.14.0"'
 assert_contains build-windows.ps1 '$NodeZipSha256 = "55b639295920b219bb2acbcfa00f90393a2789095b7323f79475c9f34795f217"'

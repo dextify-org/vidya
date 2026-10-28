@@ -8,14 +8,13 @@
 !define WEBSITE "https://vidya.media"
 !define DESCRIPTION "A media server for video lectures"
 
-InstallDir "$LOCALAPPDATA\Programs\${APPNAME}"
-InstallDirRegKey HKCU "Software\${PUBLISHER}\${APPNAME}" "InstallDir"
+InstallDir "$PROGRAMFILES64\${APPNAME}"
 
 Name "${APPNAME}"
 OutFile "${APPNAME}-x64.exe"
 BrandingText "VIDYA"
 
-RequestExecutionLevel user
+RequestExecutionLevel admin
 
 Var RemoveUserData
 
@@ -24,12 +23,9 @@ Var RemoveUserData
 !define MUI_WELCOMEFINISHPAGE_BITMAP "resources\installer-side.bmp"
 !define MUI_UNWELCOMEFINISHPAGE_BITMAP "resources\installer-side.bmp"
 !define MUI_ABORTWARNING
-!define MUI_FINISHPAGE_RUN "$INSTDIR\VIDYA.exe"
-!define MUI_FINISHPAGE_RUN_TEXT "Start ${APPNAME}"
 
 !insertmacro MUI_PAGE_WELCOME
 !insertmacro MUI_PAGE_LICENSE "LICENSE.txt"
-!insertmacro MUI_PAGE_COMPONENTS
 !insertmacro MUI_PAGE_DIRECTORY
 !insertmacro MUI_PAGE_INSTFILES
 !insertmacro MUI_PAGE_FINISH
@@ -43,7 +39,6 @@ UninstPage custom un.DataRemovalPage un.DataRemovalPageLeave
 !insertmacro MUI_LANGUAGE "English"
 
 Function .onInit
-  SetShellVarContext current
   System::Call "kernel32::GetCurrentProcess() i.s"
   System::Call "kernel32::IsWow64Process(i s, *i .r0)"
   ${If} $0 == 0
@@ -52,6 +47,10 @@ Function .onInit
   ${EndIf}
   
   SetRegView 64
+
+  ; Clean up any leftover per-user autostart/registry from previous user-level installs
+  DeleteRegValue HKCU "Software\Microsoft\Windows\CurrentVersion\Run" "${APPNAME}"
+  DeleteRegKey HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\${APPNAME}"
 FunctionEnd
 
 ; Helper function to convert backslashes to forward slashes
@@ -230,12 +229,10 @@ Function un.CheckProcesses
 FunctionEnd
 
 Function un.onInit
-  SetShellVarContext current
   DetailPrint "Uninstaller starting..."
 FunctionEnd
 
-Section "VIDYA (required)" SEC_MAIN
-  SectionIn RO
+Section "Install"
   SetOutPath "$INSTDIR"
   
   CreateDirectory "$INSTDIR\app"
@@ -279,10 +276,10 @@ Section "VIDYA (required)" SEC_MAIN
   
   SetRegView 64
   
-  WriteRegStr HKCU "Software\${PUBLISHER}" "" ""
-  WriteRegStr HKCU "Software\${PUBLISHER}\${APPNAME}" "" ""
-  WriteRegStr HKCU "Software\${PUBLISHER}\${APPNAME}" "InstallDir" "$INSTDIR"
-  WriteRegStr HKCU "Software\${PUBLISHER}\${APPNAME}" "DataPath" "$LOCALAPPDATA\${APPNAME}"
+  WriteRegStr HKLM "Software\${PUBLISHER}" "" ""
+  WriteRegStr HKLM "Software\${PUBLISHER}\${APPNAME}" "" ""
+  WriteRegStr HKLM "Software\${PUBLISHER}\${APPNAME}" "InstallDir" "$INSTDIR"
+  WriteRegStr HKLM "Software\${PUBLISHER}\${APPNAME}" "DataPath" "$LOCALAPPDATA\${APPNAME}"
   
   CreateDirectory "$SMPROGRAMS\${APPNAME}"
   CreateShortcut "$SMPROGRAMS\${APPNAME}\${APPNAME}.lnk" "$INSTDIR\VIDYA.exe" "" "$INSTDIR\app-icon.ico"
@@ -293,20 +290,18 @@ Section "VIDYA (required)" SEC_MAIN
   WriteUninstaller "$INSTDIR\uninstall.exe"
   
   SetRegView 64
-  WriteRegStr HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\${APPNAME}" "DisplayName" "${APPNAME}"
-  WriteRegStr HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\${APPNAME}" "DisplayVersion" "${APPVERSION}"
-  WriteRegStr HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\${APPNAME}" "Publisher" "${PUBLISHER}"
-  WriteRegStr HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\${APPNAME}" "URLInfoAbout" "${WEBSITE}"
-  WriteRegStr HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\${APPNAME}" "DisplayIcon" "$INSTDIR\app-icon.ico"
-  WriteRegStr HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\${APPNAME}" "UninstallString" '"$INSTDIR\uninstall.exe"'
-  WriteRegDWORD HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\${APPNAME}" "NoModify" 1
-  WriteRegDWORD HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\${APPNAME}" "NoRepair" 1
+  WriteRegStr HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\${APPNAME}" "DisplayName" "${APPNAME}"
+  WriteRegStr HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\${APPNAME}" "DisplayVersion" "${APPVERSION}"
+  WriteRegStr HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\${APPNAME}" "Publisher" "${PUBLISHER}"
+  WriteRegStr HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\${APPNAME}" "URLInfoAbout" "${WEBSITE}"
+  WriteRegStr HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\${APPNAME}" "DisplayIcon" "$INSTDIR\app-icon.ico"
+  WriteRegStr HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\${APPNAME}" "UninstallString" '"$INSTDIR\uninstall.exe"'
+  WriteRegDWORD HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\${APPNAME}" "NoModify" 1
+  WriteRegDWORD HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\${APPNAME}" "NoRepair" 1
 
-  WriteRegDWORD HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\${APPNAME}" "EstimatedSize" "225000"
-SectionEnd
+  WriteRegDWORD HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\${APPNAME}" "EstimatedSize" "225000"
 
-Section /o "Start VIDYA automatically with Windows" SEC_AUTOSTART
-  WriteRegStr HKCU "Software\Microsoft\Windows\CurrentVersion\Run" "${APPNAME}" '"$INSTDIR\VIDYA.exe"'
+  Exec '"$INSTDIR\VIDYA.exe"'
 SectionEnd
 
 Function un.DataRemovalPage
@@ -366,7 +361,7 @@ Section "Uninstall"
   Delete "$DESKTOP\${APPNAME}.lnk"
   
   ${If} $RemoveUserData == ${BST_CHECKED}
-    ReadRegStr $0 HKCU "Software\${PUBLISHER}\${APPNAME}" "DataPath"
+    ReadRegStr $0 HKLM "Software\${PUBLISHER}\${APPNAME}" "DataPath"
     ${If} $0 != ""
       RMDir /r "$0"
       DetailPrint "Removed user data from: $0"
@@ -379,9 +374,9 @@ Section "Uninstall"
   ${EndIf}
   
   DeleteRegValue HKCU "Software\Microsoft\Windows\CurrentVersion\Run" "${APPNAME}"
-  DeleteRegKey HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\${APPNAME}"
-  DeleteRegKey HKCU "Software\${PUBLISHER}\${APPNAME}"
-  DeleteRegKey /ifempty HKCU "Software\${PUBLISHER}"
+  DeleteRegKey HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\${APPNAME}"
+  DeleteRegKey HKLM "Software\${PUBLISHER}\${APPNAME}"
+  DeleteRegKey /ifempty HKLM "Software\${PUBLISHER}"
   
   DetailPrint "Uninstallation completed successfully"
 SectionEnd

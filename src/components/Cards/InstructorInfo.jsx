@@ -47,7 +47,7 @@ const InstructorInfo = ({
         instructor,
         {
           withCredentials: true,
-        }
+        },
       );
       return response;
     } catch (error) {
@@ -63,7 +63,7 @@ const InstructorInfo = ({
         { instructorId: id },
         {
           withCredentials: true,
-        }
+        },
       );
       return response;
     } catch (error) {
@@ -145,7 +145,7 @@ const InstructorInfo = ({
             />
           </div>
           <div className="instructor-title">{data.name}</div>
-          <div>Courses : {data.Courses}</div>
+          <div>Courses : {data.courses?.length ?? data.totalCourses ?? 0}</div>
           <div>Duration : {formatTime(data.totalCourseDuration)}</div>
 
           {isAdmin && (

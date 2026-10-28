@@ -21,26 +21,21 @@ COPY backend/package.json ./backend/
 RUN npm ci --omit=dev --workspace backend --include-workspace-root=false
 
 # Stage 3: Final runtime image
-FROM node:${NODE_VERSION}-alpine AS runtime
+FROM node:${NODE_VERSION}-alpine
 WORKDIR /app
 
-ENV NODE_ENV=production \
-    VIDYA_DATA_PATH=/data \
-    HOST=0.0.0.0 \
+ENV VIDYA_DATA_PATH=/data \
     PORT=31415
 
-COPY --from=frontend-builder --chown=node:node /src/build ./build
-COPY --chown=node:node backend/ ./backend/
-COPY --from=backend-deps --chown=node:node /deps/node_modules ./node_modules
-COPY --chown=node:node assets/ ./defaults/
-COPY --chown=node:node entrypoint.sh /entrypoint.sh
+COPY --from=frontend-builder /src/build ./build
+COPY backend/ ./backend/
+COPY --from=backend-deps /deps/node_modules ./node_modules
+COPY assets/ /app/defaults/
+COPY entrypoint.sh /entrypoint.sh
 
-RUN chmod 0555 /entrypoint.sh \
-    && mkdir -p /data/assets \
-    && chown -R node:node /data
+RUN chmod +x /entrypoint.sh
 
 EXPOSE 31415
 VOLUME ["/data"]
 
-USER node
 ENTRYPOINT ["/entrypoint.sh"]

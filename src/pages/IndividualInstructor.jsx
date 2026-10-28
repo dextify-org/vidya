@@ -50,6 +50,9 @@ const IndividualInstrucor = () => {
     fetchData();
   }, [updateCounter]);
   const formatTime = (duration) => {
+    if (!duration || duration <= 0) {
+      return '0 seconds';
+    }
     if (duration < 60) {
       return `${duration} seconds`;
     } else if (duration < 3600) {
@@ -144,7 +147,7 @@ const IndividualInstrucor = () => {
               </div>
               <div className="bottom">
                 <div className="bottom-container">
-                  <div>Courses : {instructorsData?.courses?.length}</div>
+                  <div>Courses : {instructorsData?.courses?.length ?? instructorsData?.totalCourses ?? 0}</div>
                   <div className="description">
                     <span className="drop-cap">Description : </span>
                     {instructorsData?.description}

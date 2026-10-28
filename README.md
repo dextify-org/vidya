@@ -60,68 +60,51 @@ VIDYA is a self-hosted media server built specifically for video lectures and ed
 
 ### Windows Installer (Recommended)
 
-Download the latest `VIDYA-x64.exe` installer from [GitHub Releases](https://github.com/dextify-org/vidya/releases) and run it. The installer is per-user, does not require administrator privileges, and stores the application under `%LOCALAPPDATA%\Programs\VIDYA`. Starting the tray application automatically with Windows is an explicit, unchecked installer option.
-
-The installer includes pre-built tray binaries. Review the [tray binary provenance notice](#tray-binary-provenance) before using or redistributing them.
+Download the latest `VIDYA-x64.exe` installer from [GitHub Releases](https://github.com/dextify-org/vidya/releases) and run it. The installer bundles everything you need — Node.js runtime, server backend, web frontend, and the system tray application.
 
 ### Docker
 
-Create a media directory or point `VIDYA_MEDIA_PATH` at an existing one, then build and start the checked-out source:
-
 ```bash
-mkdir -p media
-VIDYA_MEDIA_PATH=/absolute/path/to/media docker compose up --build -d
+docker compose up -d
 ```
 
 Or use `docker run` directly:
 
 ```bash
-docker build -t vidya:local .
-docker volume create vidya-data
 docker run -d \
   --name vidya \
-  -p 127.0.0.1:31415:31415 \
-  -v vidya-data:/data \
+  -p 31415:31415 \
+  -v ./data:/data \
   -v /path/to/your/media:/media:ro \
   -e VIDYA_DATA_PATH=/data \
   -e PORT=31415 \
-  --read-only \
-  --tmpfs /tmp:rw,nosuid,nodev,size=64m \
-  --cap-drop ALL \
-  --security-opt no-new-privileges \
   --restart unless-stopped \
-  vidya:local
+  ghcr.io/dextify-org/vidya:latest
 ```
 
 Then open `http://localhost:31415` in your browser.
 
 ### Docker Compose
 
-The checked-in Compose configuration:
+```yaml
+services:
+  vidya:
+    image: ghcr.io/dextify-org/vidya:latest
+    container_name: vidya
+    ports:
+      - "31415:31415"
+    volumes:
+      - ./data:/data
+      - /path/to/your/media:/media:ro
+    environment:
+      - VIDYA_DATA_PATH=/data
+      - PORT=31415
+    restart: unless-stopped
 
-- Builds the local checkout instead of pulling a mutable image.
-- Publishes the service on `127.0.0.1` only.
-- Stores application data in the `vidya-data` named volume.
-- Mounts media read-only from `VIDYA_MEDIA_PATH` (default: `./media`).
-- Runs with a read-only root filesystem, a temporary `/tmp`, no Linux capabilities, and `no-new-privileges`.
-
-To change the host-side port while keeping loopback-only access:
-
-```bash
-VIDYA_PORT=8080 docker compose up --build -d
+volumes:
+  data:
+    driver: local
 ```
-
-#### Explicit LAN access
-
-LAN access is disabled by default. To expose VIDYA on every host interface, opt in explicitly:
-
-```bash
-VIDYA_BIND_ADDRESS=0.0.0.0 \
-VIDYA_MEDIA_PATH=/absolute/path/to/media \
-docker compose up --build -d
-```
-
-Only enable this on a trusted network after completing initial setup. Apply host firewall rules and restrict access to the intended subnet. To bind one specific interface instead, set `VIDYA_BIND_ADDRESS` to that interface's IP address.
 
 ---
 
@@ -258,9 +241,9 @@ Extract only `node.exe` into `node\`. NSIS deliberately packages only this file.
 
 This produces `VIDYA-x64.exe` — a full Windows installer that:
 
-- Installs to `%LOCALAPPDATA%\Programs\VIDYA` without elevation
-- Creates current-user Start Menu and Desktop shortcuts
-- Registers in the current user's Add/Remove Programs list, with optional current-user startup
+- Installs to `C:\Program Files\VIDYA`
+- Creates Start Menu and Desktop shortcuts
+- Registers in Windows Add/Remove Programs
 - Bundles Node.js runtime, backend, frontend build, and tray app
 - Stores user data in `%LOCALAPPDATA%\VIDYA`
 
@@ -283,13 +266,9 @@ Run the built image:
 ```bash
 docker run -d \
   --name vidya \
-  -p 127.0.0.1:31415:31415 \
-  -v vidya-data:/data \
+  -p 31415:31415 \
+  -v ./data:/data \
   -v /path/to/your/media:/media:ro \
-  --read-only \
-  --tmpfs /tmp:rw,nosuid,nodev,size=64m \
-  --cap-drop ALL \
-  --security-opt no-new-privileges \
   vidya
 ```
 
@@ -426,8 +405,6 @@ The backend exposes a REST API at `http://localhost:31415/api/`:
 | `PORT`            | `31415`         | Server port                              |
 | `CORS_ALLOWED_ORIGINS` | Empty | Comma-separated trusted cross-origin browser origins |
 | `SESSION_COOKIE_SECURE` | `false` | Set to `true` when serving through HTTPS |
-
-The container listens on `0.0.0.0` inside its isolated network namespace so Docker can forward traffic. Compose still publishes that port to host loopback only unless `VIDYA_BIND_ADDRESS` is explicitly changed.
 
 See [SECURITY.md](SECURITY.md) for authentication, dependency-audit, and tray-binary security notes.
 
