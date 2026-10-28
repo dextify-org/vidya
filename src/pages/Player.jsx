@@ -321,7 +321,6 @@ const Player = () => {
   const [defLang, setDefLang] = useState(null);
   const [totalLectures, setTotalLectures] = useState(null);
   const lectureRef = useRef({});
-  const playlistRef = useRef(null);
   const scrollTimeoutRef = useRef(null);
   const { id } = useParams();
   const {
@@ -595,24 +594,12 @@ const Player = () => {
     }
 
     scrollTimeoutRef.current = setTimeout(() => {
-      const playlist = playlistRef.current;
-      const lecture = lectureRef.current[nowPlaying];
-
-      if (!playlist || !lecture || playlist.scrollHeight <= playlist.clientHeight) {
-        return;
+      if (lectureRef.current[nowPlaying]) {
+        lectureRef.current[nowPlaying].scrollIntoView({
+          behavior: "smooth",
+          block: "center",
+        });
       }
-
-      const targetTop =
-        lecture.offsetTop - playlist.offsetTop -
-        (playlist.clientHeight - lecture.offsetHeight) / 2;
-
-      playlist.scrollTo({
-        behavior:
-          document.documentElement.dataset.themeTransitions === "disabled"
-            ? "auto"
-            : "smooth",
-        top: Math.max(0, targetTop),
-      });
     }, 300);
 
     return () => {
@@ -679,7 +666,7 @@ const Player = () => {
           />
         )}
 
-        <div className="playlist-container" ref={playlistRef}>
+        <div className="playlist-container">
           {courseData?.sections.map((section) => (
             <div key={section.id} className="section-item">
               <SectionHeader

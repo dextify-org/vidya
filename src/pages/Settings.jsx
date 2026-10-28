@@ -4,7 +4,6 @@ import { useNavigate, useLocation } from "react-router-dom";
 import Toast from "../components/Toast/Toast";
 import PreNav from "../components/Navbar/PreNav";
 import Admin from "../components/Settings/Admin";
-import ThemePreferences from "../components/Settings/ThemePreferences";
 import { useAuth } from "../context/AuthContext";
 import axios from "../api/axiosInstance";
 const Settings = () => {
@@ -46,22 +45,21 @@ const Settings = () => {
       <div className="settings-container">
         <div className="settings-sidebar">
           {tabs.map((tab) => (
-            <motion.button
+            <motion.div
               key={tab.id}
               className={`sidebar-tab ${
                 activeTab === tab.id ? "active-indicator" : ""
               }`}
               onClick={() => handleTabChange(tab.id)}
-              type="button"
             >
               {tab.label}
-            </motion.button>
+            </motion.div>
           ))}
         </div>
         <div className="settings-sidebar-info">
           <div style={{ height: "100%" }} key={activeTab}>
             {activeTab === "profile" && <ProfileSettings user={user} />}
-            {activeTab === "display" && <ThemePreferences />}
+            {activeTab === "display" && <DisplaySettings />}
             {activeTab === "admin" && user?.role === "admin" && <Admin />}
           </div>
         </div>
@@ -77,7 +75,6 @@ const ProfileSettings = ({ user }) => {
   const [showToast, setShowToast] = useState(false);
   const [toastMessage, setToastMessage] = useState("Completed successfully");
   const [toastType, setToastType] = useState("success");
-  const [isChangingPassword, setIsChangingPassword] = useState(false);
 
   const handlePassChange = async () => {
     setShowToast(false);
@@ -102,8 +99,7 @@ const ProfileSettings = ({ user }) => {
       }
 
       try {
-        setIsChangingPassword(true);
-        await axios.post(
+        const response = await axios.post(
           "/api/auth/password-change",
           {
             currentPassword: currentPass,
@@ -125,8 +121,6 @@ const ProfileSettings = ({ user }) => {
         setToastMessage(errorMessage);
         setShowToast(true);
         console.error("Password change error:", error);
-      } finally {
-        setIsChangingPassword(false);
       }
     } else {
       setToastType("error");
@@ -147,52 +141,47 @@ const ProfileSettings = ({ user }) => {
       <div className="settings-content">
         <div className="settings-title">Profile Settings</div>
         <div className="img-container">{user?.username}</div>
-        <form
-          aria-busy={isChangingPassword}
-          className="password-form"
-          onSubmit={(event) => {
-            event.preventDefault();
-            handlePassChange();
-          }}
-        >
-          <label htmlFor="current-password">Current Password</label>
+        <div className="password-form">
+          <label>Current Password</label>
           <input
-            id="current-password"
             type="password"
             className="password"
             value={currentPass}
             autoComplete="current-password"
             onChange={(e) => setCurrentPass(e.target.value)}
           />
-          <label htmlFor="new-password">New Password</label>
+          <label>New Password</label>
           <input
-            id="new-password"
             type="password"
             className="password"
             value={newPass}
             autoComplete="new-password"
             onChange={(e) => setNewPass(e.target.value)}
           />
-          <label htmlFor="confirm-new-password">Confirm New Password</label>
+          <label>Confirm New Password</label>
           <input
-            id="confirm-new-password"
             type="password"
             className="password"
             value={confirmNewPass}
             autoComplete="new-password"
             onChange={(e) => setConfirmNewPass(e.target.value)}
           />
-          <button
-            className="change-password-button"
-            disabled={isChangingPassword}
-            type="submit"
-          >
-            {isChangingPassword ? "Changing Password..." : "Change Password"}
-          </button>
-        </form>
+          <div onClick={handlePassChange} className="change-password-button">
+            Change Password
+          </div>
+        </div>
       </div>
     </>
   );
 };
 
+const DisplaySettings = () => (
+  <div className="settings-content">
+    <div className="settings-title">Display Settings</div>
+    <div className="theme-label">Theme</div>
+    <select name="languages" id="lang">
+      <option value="glassmorphism">Glassmorphism</option>
+    </select>
+  </div>
+);
 export default Settings;
