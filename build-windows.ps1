@@ -3,7 +3,7 @@ $ErrorActionPreference = "Stop"
 # Ensure npm resolves to npm.cmd if PowerShell execution policy restricts scripts
 $NpmCmd = Get-Command npm.cmd -ErrorAction SilentlyContinue
 if ($NpmCmd) {
-    Set-Alias npm $NpmCmd.Source -Scope Process
+    Set-Alias npm $NpmCmd.Source -Scope Script
 }
 
 $NodeVersion = "v22.14.0"
@@ -56,11 +56,14 @@ if (Test-Path $NodeExe) {
     Write-Host ">>> Verified Node.js $NodeVersion -> node\node.exe" -ForegroundColor Green
 }
 
-# Step 1: Install locked workspace dependencies and build frontend
+# Step 1: Install locked workspace dependencies if missing, and build frontend
 Write-Host ">>> Building frontend..." -ForegroundColor Cyan
 Set-Location $RepoRoot
-npm ci
-if ($LASTEXITCODE -ne 0) { Write-Error "Workspace dependency installation failed."; exit 1 }
+if (-not (Test-Path (Join-Path $RepoRoot "node_modules"))) {
+    Write-Host ">>> Installing workspace dependencies..." -ForegroundColor Cyan
+    npm ci
+    if ($LASTEXITCODE -ne 0) { Write-Error "Workspace dependency installation failed."; exit 1 }
+}
 npm run build
 if ($LASTEXITCODE -ne 0) { Write-Error "Frontend build failed."; exit 1 }
 
