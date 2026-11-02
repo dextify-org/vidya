@@ -304,7 +304,6 @@ const LectureItem = memo(
 );
 
 const Player = () => {
-  const [currentVideo, setCurrentVideo] = useState(null);
   const [nowPlaying, setNowPlaying] = useState(null);
   const [lectureDictionary, setLectureDictionary] = useState(null);
   const [initialVideoProgress, setInitialVideoProgress] = useState(0);
@@ -319,6 +318,7 @@ const Player = () => {
   const [isNextVideo, setIsNextVideo] = useState(null);
   const [isPrevVideo, setIsPrevVideo] = useState(null);
   const [defLang, setDefLang] = useState(null);
+  const [defVideo, setDefVideo] = useState(null);
   const [totalLectures, setTotalLectures] = useState(null);
   const lectureRef = useRef({});
   const scrollTimeoutRef = useRef(null);
@@ -493,6 +493,7 @@ const Player = () => {
           name: lecture.cleanedName,
           subtitles: lecture.subtitles || [],
           isCompleted,
+          duration: lecture.duration,
         };
 
         prevLectureId = currentLectureId;
@@ -517,6 +518,7 @@ const Player = () => {
         const dict = await createLectureDictionary(newData.data[0]);
         setLectureDictionary(dict);
         setDefLang(newData.data[1].deflang);
+        setDefVideo(newData.data[1].defvideo);
       } catch (err) {
         setError(err.message);
         console.error("Error fetching course data:", err);
@@ -583,7 +585,6 @@ const Player = () => {
       setExpandedSections((prev) => new Set([...prev, currentSection.id]));
     }
 
-    setCurrentVideo(lectureDictionary[nowPlaying].url);
     setIsPrevVideo(!!lectureDictionary[nowPlaying].prev);
     setIsNextVideo(!!lectureDictionary[nowPlaying].next);
     if (lectureDictionary[nowPlaying].subtitles) {
@@ -621,6 +622,8 @@ const Player = () => {
     );
   }
 
+  const activeSource = lectureDictionary?.[nowPlaying]?.url || null;
+
   return (
     <>
       {showToast && (
@@ -644,7 +647,7 @@ const Player = () => {
         {lectureDictionary[nowPlaying]?.type &&
         lectureDictionary[nowPlaying]?.type === "video" ? (
           <VideoPlayer
-            videoSource={currentVideo}
+            videoSource={activeSource}
             initialVideoProgress={initialVideoProgress}
             onPlayRequest={playRequest}
             onVideoEnd={handleVideoEnd}
@@ -657,11 +660,14 @@ const Player = () => {
             CourseId={id}
             subtitles={subtitles}
             deflang={defLang}
+            defvideo={defVideo}
+            onVideoPreferenceChange={setDefVideo}
+            videoDuration={lectureDictionary[nowPlaying]?.duration}
           />
         ) : (
           <FileRenderer
             fileType={lectureDictionary?.[nowPlaying]?.type}
-            fileSrc={currentVideo}
+            fileSrc={activeSource}
             fileName={lectureDictionary[nowPlaying]?.cleanedName}
           />
         )}

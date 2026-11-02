@@ -22,13 +22,39 @@ import { promises as fsp } from "fs";
 import path from "path";
 import { ASSETS_PATH, WEB_PATH, PORT } from "./config/path.js";
 import { expressSecret } from "./config/secrets.js";
+import { warmUpVideoEncoder } from "./utils/transcode.js";
+import { DataTypes } from "sequelize";
 const SequelizeStore = sessionConnect(session.Store);
 const app = express();
 
 
+const ensureUserPreferences = async () => {
+  const queryInterface = sequelize.getQueryInterface();
+
+  try {
+    const tables = await queryInterface.showAllTables();
+    const usersTable = tables.find(
+      (table) => String(table?.tableName || table).toLowerCase() === "users",
+    );
+
+    if (!usersTable) return;
+
+    const description = await queryInterface.describeTable(usersTable);
+    if (!description.defvideo) {
+      await queryInterface.addColumn(usersTable, "defvideo", {
+        type: DataTypes.STRING,
+      });
+      console.log("Added Users.defvideo column");
+    }
+  } catch (error) {
+    console.error("Failed to migrate user preferences:", error);
+  }
+};
+
 const syncdb = async () => {
   await sequelize.sync({ logging: false });
   console.log("Database & tables created!");
+  await ensureUserPreferences();
   await Server.findOrCreate({
     where: { name: "VIDYA" },
     defaults: { name: "VIDYA" },
@@ -138,4 +164,5 @@ app.get("*", (req, res) => {
 });
 app.listen(PORT, () => {
   console.log(`Server is running on port ${PORT}`);
+  warmUpVideoEncoder();
 });

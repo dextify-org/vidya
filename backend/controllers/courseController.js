@@ -12,9 +12,8 @@ import {
   Course,
   PathFile,
 } from "../models/index.js";
-import ffprobe from "@ffprobe-installer/ffprobe";
+import { ffprobePath } from "../utils/transcode.js";
 const isWindows = os.platform() === "win32";
-const ffprobePath = ffprobe.path;
 const pathCache = {
   entries: new Map(),
   reset() {

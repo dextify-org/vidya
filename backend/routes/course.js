@@ -15,7 +15,15 @@ import {
 } from "../models/index.js";
 import fs, { promises as fsp } from "fs";
 import path from "path";
+import {
+  getQualityProfiles,
+  resolveProfile,
+  resolveAutoProfile,
+  getVideoEncoder,
+  spawnTranscode,
+} from "../utils/transcode.js";
 const router = Router();
+const videoQualityPattern = /^(direct|auto|original|\d{3,4}p)$/;
 const convertSRTToWebVTT = (srtContent) => {
   return [
     "WEBVTT\n",
@@ -34,6 +42,101 @@ const convertSRTToWebVTT = (srtContent) => {
       })
       .filter(Boolean),
   ].join("\n\n");
+};
+
+const timestampToSeconds = (timestamp) => {
+  const match = timestamp
+    .trim()
+    .match(/^(?:(\d+):)?(\d{1,2}):(\d{2})\.(\d{3})$/);
+  if (!match) return null;
+  const [, hours = "0", minutes, seconds, milliseconds] = match;
+  return (
+    parseInt(hours, 10) * 3600 +
+    parseInt(minutes, 10) * 60 +
+    parseInt(seconds, 10) +
+    parseInt(milliseconds, 10) / 1000
+  );
+};
+
+const secondsToTimestamp = (seconds) => {
+  const totalMs = Math.round(Math.max(0, seconds) * 1000);
+  const hours = Math.floor(totalMs / 3600000);
+  const minutes = Math.floor((totalMs % 3600000) / 60000);
+  const secs = Math.floor((totalMs % 60000) / 1000);
+  const milliseconds = totalMs % 1000;
+  return [
+    String(hours).padStart(2, "0"),
+    String(minutes).padStart(2, "0"),
+    `${String(secs).padStart(2, "0")}.${String(milliseconds).padStart(3, "0")}`,
+  ].join(":");
+};
+
+const shiftWebVTT = (content, offset) => {
+  if (!offset || offset <= 0) return content;
+
+  const [header, ...cues] = content.trim().split(/\n{2,}/);
+  const shiftedCues = cues
+    .map((cue) => {
+      const lines = cue.split("\n");
+      const timingIndex = lines.findIndex((line) => line.includes("-->"));
+      if (timingIndex === -1) return null;
+
+      const [startRaw, endRaw] = lines[timingIndex]
+        .split("-->")
+        .map((value) => value.trim().split(/\s+/)[0]);
+      const start = timestampToSeconds(startRaw);
+      const end = timestampToSeconds(endRaw);
+      if (start === null || end === null) return null;
+
+      const shiftedStart = start - offset;
+      const shiftedEnd = end - offset;
+      if (shiftedEnd <= 0) return null;
+
+      lines[timingIndex] = `${secondsToTimestamp(Math.max(0, shiftedStart))} --> ${secondsToTimestamp(shiftedEnd)}`;
+      return lines.join("\n");
+    })
+    .filter(Boolean);
+
+  return [header, ...shiftedCues].join("\n\n");
+};
+
+const streamVideoFile = (req, res, videoPath) => {
+  const stat = fs.statSync(videoPath);
+  const fileSize = stat.size;
+  const range = req.headers.range;
+
+  if (range) {
+    const parts = range.replace(/bytes=/, "").split("-");
+    const start = parseInt(parts[0], 10);
+    const end = parts[1] ? parseInt(parts[1], 10) : fileSize - 1;
+    const chunkSize = end - start + 1;
+
+    const stream = fs.createReadStream(videoPath, { start, end });
+
+    res.writeHead(206, {
+      "Content-Range": `bytes ${start}-${end}/${fileSize}`,
+      "Accept-Ranges": "bytes",
+      "Content-Length": chunkSize,
+      "Content-Type": "video/mp4",
+    });
+
+    stream.pipe(res);
+    return;
+  }
+
+  res.writeHead(200, {
+    "Content-Length": fileSize,
+    "Accept-Ranges": "bytes",
+    "Content-Type": "video/mp4",
+  });
+
+  fs.createReadStream(videoPath).pipe(res);
+};
+
+const findVideoLecture = async (lectureId) => {
+  const lecture = await Lecture.findByPk(lectureId);
+  if (!lecture?.path || !fs.existsSync(lecture.path)) return null;
+  return lecture;
 };
 
 router.get("/", isAuthenticated, async (req, res) => {
@@ -95,8 +198,11 @@ router.post("/player", isAuthenticated, async (req, res) => {
       ],
       attributes: ["id", "cleanedName", "description"],
     });
-    const deflang = { deflang: req.user.deflang };
-    res.json([courseData, deflang]);
+    const preferences = {
+      deflang: req.user.deflang,
+      defvideo: req.user.defvideo,
+    };
+    res.json([courseData, preferences]);
   } catch (error) {
     console.error(error);
   }
@@ -175,50 +281,126 @@ router.get(
   verifyQueryToken,
   isAuthenticated,
   async (req, res) => {
-    const { LectureId } = req.params;
-    const lecture = await Lecture.findByPk(LectureId);
-    const videoPath = lecture.path;
-
-    if (!fs.existsSync(videoPath)) {
+    const lecture = await findVideoLecture(req.params.LectureId);
+    if (!lecture) {
       return res.status(404).send("Video not found");
     }
 
-    const stat = fs.statSync(videoPath);
-    const fileSize = stat.size;
+    streamVideoFile(req, res, lecture.path);
+  }
+);
 
-    const range = req.headers.range;
+router.get(
+  "/qualities/:LectureId",
+  verifyQueryToken,
+  isAuthenticated,
+  async (req, res) => {
+    try {
+      const lecture = await findVideoLecture(req.params.LectureId);
+      if (!lecture) {
+        return res.status(404).send("Video not found");
+      }
 
-    if (range) {
-      const parts = range.replace(/bytes=/, "").split("-");
-      const start = parseInt(parts[0]);
-      const end = parts[1] ? parseInt(parts[1]) : fileSize - 1;
+      const quality = await getQualityProfiles(lecture.path);
+      if (!quality) {
+        return res.status(415).send("Unsupported video format");
+      }
 
-      const chunkSize = end - start + 1;
-
-      const stream = fs.createReadStream(videoPath, { start, end });
-
-      const headers = {
-        "Content-Range": `bytes ${start}-${end}/${fileSize}`,
-        "Accept-Ranges": "bytes",
-        "Content-Length": chunkSize,
-        "Content-Type": "video/mp4",
-      };
-
-      res.writeHead(206, headers);
-
-      stream.pipe(res);
-    } else {
-      const headers = {
-        "Content-Length": fileSize,
-        "Content-Type": "video/mp4",
-      };
-
-      res.writeHead(200, headers);
-
-      fs.createReadStream(videoPath).pipe(res);
+      res.setHeader("Cache-Control", "no-store");
+      res.json({
+        profiles: quality.profiles,
+        source: {
+          width: quality.metadata.width,
+          height: quality.metadata.height,
+          fps: quality.metadata.fps,
+          duration: quality.metadata.duration,
+          codec: quality.metadata.videoCodec,
+          bitrate: quality.metadata.videoBitrate,
+        },
+      });
+    } catch (error) {
+      console.error("Error resolving video qualities:", error);
+      res.status(500).send("Internal server error");
     }
   }
 );
+
+router.get(
+  "/transcode/:LectureId",
+  verifyQueryToken,
+  isAuthenticated,
+  async (req, res) => {
+    try {
+      const lecture = await findVideoLecture(req.params.LectureId);
+      if (!lecture) {
+        return res.status(404).send("Video not found");
+      }
+
+      const quality = await getQualityProfiles(lecture.path);
+      if (!quality) {
+        return res.status(415).send("Unsupported video format");
+      }
+
+      const requestedProfile = String(req.query.profile || "auto");
+      const profile =
+        requestedProfile === "auto"
+          ? resolveAutoProfile(quality.profiles)
+          : resolveProfile(quality.profiles, requestedProfile);
+
+      if (!profile) {
+        return res.status(400).json({ message: "Invalid quality profile" });
+      }
+
+      if (profile.kind === "direct") {
+        return streamVideoFile(req, res, lecture.path);
+      }
+
+      const encoder = await getVideoEncoder();
+      const { child, seek } = spawnTranscode({
+        input: lecture.path,
+        profile,
+        metadata: quality.metadata,
+        encoder,
+        start: req.query.start,
+      });
+
+      res.writeHead(200, {
+        "Content-Type": "video/mp4",
+        "Cache-Control": "no-store",
+        "Accept-Ranges": "none",
+        "X-Stream-Start": seek.toFixed(3),
+        "X-Stream-Profile": profile.id,
+        "X-Video-Duration": String(quality.metadata.duration || 0),
+        "X-Video-Height": String(profile.height),
+      });
+
+      const stopTranscode = () => {
+        if (!child.killed) {
+          child.kill("SIGKILL");
+        }
+      };
+
+      req.on("close", stopTranscode);
+      res.on("close", stopTranscode);
+      child.stdout.on("error", (error) => {
+        if (error.code !== "EPIPE") {
+          console.error("Transcode stream error:", error);
+        }
+      });
+      child.on("error", () => res.end());
+
+      child.stdout.pipe(res);
+    } catch (error) {
+      console.error("Error transcoding video:", error);
+      if (!res.headersSent) {
+        res.status(500).send("Internal server error");
+      } else {
+        res.end();
+      }
+    }
+  }
+);
+
 router.get(
   "/download/:LectureId",
   verifyQueryToken,
@@ -324,18 +506,16 @@ router.get("/subtitle/:subtitleId", async (req, res) => {
     }
 
     const fileExtension = path.extname(filePath).toLowerCase();
+    const offset = Math.max(0, parseFloat(req.query.start) || 0);
 
     res.setHeader("Content-Type", "text/vtt");
     if (fileExtension === ".srt") {
       const srtContent = await fsp.readFile(filePath, "utf8");
       const webVTTContent = convertSRTToWebVTT(srtContent);
-      res.send(webVTTContent);
+      res.send(shiftWebVTT(webVTTContent, offset));
     } else {
-      res.sendFile(filePath, (err) => {
-        if (err) {
-          res.status(404).send("Subtitle not found");
-        }
-      });
+      const vttContent = await fsp.readFile(filePath, "utf8");
+      res.send(shiftWebVTT(vttContent, offset));
     }
   } catch (error) {
     console.error("Error downloading file:", error);
@@ -428,6 +608,24 @@ router.post("/subtitle/preference", isAuthenticated, async (req, res) => {
     const user = await User.findByPk(userId);
     await user.update({ deflang: language });
     res.status(204).send("Subtitle preference updated successfully");
+  } catch (error) {
+    console.error(error);
+    res.status(500).send("internal server error");
+  }
+});
+
+router.post("/video/preference", isAuthenticated, async (req, res) => {
+  const userId = req.user.id;
+  const { quality } = req.body;
+
+  if (typeof quality !== "string" || !videoQualityPattern.test(quality)) {
+    return res.status(400).send("Invalid video quality preference");
+  }
+
+  try {
+    const user = await User.findByPk(userId);
+    await user.update({ defvideo: quality });
+    res.status(204).send("Video quality preference updated successfully");
   } catch (error) {
     console.error(error);
     res.status(500).send("internal server error");

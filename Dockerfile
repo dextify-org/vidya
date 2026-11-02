@@ -24,6 +24,7 @@ COPY --from=frontend-builder /src/build ./build
 COPY backend/ ./backend/
 COPY --from=backend-deps /deps/node_modules ./backend/node_modules
 COPY assets/ /app/defaults/
+RUN apk add --no-cache ffmpeg
 COPY entrypoint.sh /entrypoint.sh
 RUN chmod +x /entrypoint.sh
 

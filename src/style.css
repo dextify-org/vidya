@@ -2088,6 +2088,66 @@ input[type="file"]::file-selector-button:hover {
   overflow-y: auto;
 }
 
+.quality-container {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.control-button.quality {
+  gap: 0.35rem;
+}
+
+.control-button.quality > svg {
+  width: 1.2rem;
+  height: 1.2rem;
+}
+
+.quality-button-label {
+  color: whitesmoke;
+  font-size: 0.8rem;
+  white-space: nowrap;
+}
+
+.quality-menu {
+  position: absolute;
+  bottom: 2.5rem;
+  right: 0;
+  background-color: rgba(0, 0, 0, 0.8);
+  border-radius: 0.25rem;
+  padding: 0.5rem;
+  z-index: 10;
+  min-width: 11rem;
+  max-height: 16rem;
+  overflow-y: auto;
+}
+
+.quality-option {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 1rem;
+  padding: 0.25rem 0.5rem;
+  border-radius: 0.2rem;
+  color: #ccc;
+  cursor: pointer;
+  font-size: 0.85rem;
+}
+
+.quality-option:hover {
+  background-color: rgba(255, 255, 255, 0.1);
+}
+
+.quality-option.active {
+  color: #fff;
+  background-color: rgba(255, 255, 255, 0.2);
+}
+
+.quality-bitrate {
+  color: #9a9a9a;
+  font-size: 0.75rem;
+}
+
 .progress-container:hover {
   height: 1rem;
   transition: height 0.2s ease-in-out;
