@@ -5,8 +5,8 @@ import Cards from "../components/Cards/Cards";
 import { useEffect, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import axios from "../api/axiosInstance";
-import Loader from "../components/Loader/Loader.js";
-import Toast from "../components/Toast/Toast.js";
+import Loader from "../components/Loader/Loader.jsx";
+import Toast from "../components/Toast/Toast.jsx";
 import { useAuth } from "../context/AuthContext";
 const IndividualInstrucor = () => {
   const { id } = useParams();
@@ -50,6 +50,7 @@ const IndividualInstrucor = () => {
     fetchData();
   }, [updateCounter]);
   const formatTime = (duration) => {
+    if (!duration) return "0 Minutes";
     if (duration < 60) {
       return `${duration} seconds`;
     } else if (duration < 3600) {
@@ -144,7 +145,7 @@ const IndividualInstrucor = () => {
               </div>
               <div className="bottom">
                 <div className="bottom-container">
-                  <div>Courses : {instructorsData?.courses?.length}</div>
+                  <div>Courses : {instructorsData?.courses?.length ?? 0}</div>
                   <div className="description">
                     <span className="drop-cap">Description : </span>
                     {instructorsData?.description}

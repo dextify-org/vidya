@@ -1,5 +1,10 @@
 $ErrorActionPreference = "Stop"
 
+$NpmCmd = Get-Command npm.cmd -ErrorAction SilentlyContinue
+if ($NpmCmd) {
+    Set-Alias npm $NpmCmd.Source -Scope Script
+}
+
 $RepoRoot = $PSScriptRoot
 $StagingDir = Join-Path $RepoRoot "staging"
 $StagingApp = Join-Path $StagingDir "app"

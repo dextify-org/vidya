@@ -295,7 +295,8 @@ Section "Install"
   
   WriteRegDWORD HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\${APPNAME}" "EstimatedSize" "225000"
   
-  Exec '"$INSTDIR\VIDYA.exe"'
+  ; Launch non-elevated through explorer.exe so mapped network drives (Z:\) are visible
+  Exec '"$WINDIR\explorer.exe" "$INSTDIR\VIDYA.exe"'
 SectionEnd
 
 Function un.DataRemovalPage

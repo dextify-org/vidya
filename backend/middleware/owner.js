@@ -1,7 +1,7 @@
 import { User, Server } from "../models/index.js";
 import jwt from "jsonwebtoken";
 
-const JWT_SECRET = "your-jwt-secret-key";
+import { jwtSecret as JWT_SECRET } from "../config/secrets.js";
 
 const populateUser = async (req, res, next) => {
   if (req.user) return next();

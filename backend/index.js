@@ -20,26 +20,12 @@ import searchRoutes from "./routes/search.js";
 import { populateUser } from "./middleware/owner.js";
 import { promises as fsp } from "fs";
 import path from "path";
-import { ASSETS_PATH, WEB_PATH, PORT, KEYS_PATH } from "./config/path.js";
+import { ASSETS_PATH, WEB_PATH, PORT } from "./config/path.js";
+import { expressSecret } from "./config/secrets.js";
 const SequelizeStore = sessionConnect(session.Store);
 const app = express();
 
-const secretKey = async () => {
-  const filepath = KEYS_PATH;
-  try {
-    const fileContent = await fsp.readFile(filepath, "utf8");
-    const data = JSON.parse(fileContent);
-    return data.expressSecret;
-  } catch (error) {
-    console.log("No key found generating new key");
-  }
-  const data = {};
-  const newKey = crypto.randomBytes(16).toString("hex");
-  data.expressSecret = newKey;
-  await fsp.writeFile(filepath, JSON.stringify(data, null, 2));
-  return newKey;
-};
-const expressSecret = await secretKey();
+
 const syncdb = async () => {
   await sequelize.sync({ logging: false });
   console.log("Database & tables created!");

@@ -2,7 +2,7 @@ import PreNav from "../components/Navbar/PreNav";
 import { useParams, useNavigate, useLocation } from "react-router-dom";
 import { AnimatePresence, motion } from "framer-motion";
 import axios from "../api/axiosInstance.js";
-import Loader from "../components/Loader/Loader.js";
+import Loader from "../components/Loader/Loader.jsx";
 import {
   DotsVerticalRounded,
   Plus,
@@ -27,8 +27,8 @@ import {
   useCallback,
   useLayoutEffect,
 } from "react";
-import Toast from "../components/Toast/Toast.js";
-import { useAuth } from "../context/AuthContext.js";
+import Toast from "../components/Toast/Toast.jsx";
+import { useAuth } from "../context/AuthContext.jsx";
 const ICON_MAP = {
   video: <VideoSolid />,
   pdf: <FilePdfSolid />,

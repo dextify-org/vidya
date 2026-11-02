@@ -4,8 +4,27 @@ const createInstructor = async (req, res) => {
   const { name } = req.body;
   try {
     await Instructor.create({ name });
-    const instructors = await Instructor.findAll();
-    res.status(200).json(instructors);
+    const instructors = await Instructor.findAll({
+      include: [
+        {
+          model: Course,
+          as: "courses",
+          attributes: ["duration"],
+        },
+      ],
+      raw: false,
+    });
+
+    const instructorsWithDuration = instructors.map((instructor) => {
+      const instructorData = instructor.toJSON();
+      const totalDuration = instructorData.courses.reduce((total, course) => {
+        return total + (course.duration || 0);
+      }, 0);
+      instructorData.totalCourseDuration = totalDuration;
+      return instructorData;
+    });
+
+    res.status(200).json(instructorsWithDuration);
   } catch (error) {
     console.error(error);
     res.status(500).json({ message: "Failed to create instructor" });

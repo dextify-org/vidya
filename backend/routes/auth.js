@@ -4,7 +4,7 @@ import { User } from "../models/index.js";
 import { isAuthenticated } from "../middleware/owner.js";
 import jwt from "jsonwebtoken";
 const router = Router();
-const JWT_SECRET = "your-jwt-secret-key";
+import { jwtSecret as JWT_SECRET } from "../config/secrets.js";
 
 router.post("/login", passport.authenticate("local"), (req, res) => {
   try {

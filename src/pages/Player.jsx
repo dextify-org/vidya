@@ -8,10 +8,10 @@ import React, {
 } from "react";
 import axios from "../api/axiosInstance.js";
 import PreNav from "../components/Navbar/PreNav";
-import VideoPlayer from "../components/VideoPlayer/VideoPlayer.js";
+import VideoPlayer from "../components/VideoPlayer/VideoPlayer.jsx";
 import { AnimatePresence, motion } from "framer-motion";
-import { useAuth } from "../context/AuthContext.js";
-import Toast from "../components/Toast/Toast.js";
+import { useAuth } from "../context/AuthContext.jsx";
+import Toast from "../components/Toast/Toast.jsx";
 import {
   CheckCircleSolid,
   ChevronRight,
@@ -26,8 +26,8 @@ import {
   DotsVerticalRounded,
 } from "../assets";
 import { useParams, useLocation } from "react-router-dom";
-import FileRenderer from "../components/FileRenderer/FileRenderer.js";
-import Loader from "../components/Loader/Loader.js";
+import FileRenderer from "../components/FileRenderer/FileRenderer.jsx";
+import Loader from "../components/Loader/Loader.jsx";
 const ICON_MAP = {
   video: <VideoSolid />,
   pdf: <FilePdfSolid />,

@@ -60,31 +60,24 @@ const isValidPath = (basePath, targetPath) => {
 
 const getSystemDrives = async () => {
   if (isWindows) {
-    try {
-      const { stdout } = await execPromise("wmic logicaldisk get name");
-      const drives = stdout
-        .split("\n")
-        .slice(1)
-        .map((line) => line.trim())
-        .filter((line) => line.match(/^[A-Z]:$/))
-        .map((drive) => ({
-          path: `${drive}\\`,
-          label: drive,
-          accessible: true,
-          type: "drive",
-        }));
-      return drives;
-    } catch (error) {
-      console.error("Error getting Windows drives:", error);
-      return [
-        {
-          path: "C:\\",
-          label: "C:",
-          accessible: true,
-          type: "drive",
-        },
-      ];
-    }
+    const driveLetters = "ABCDEFGHIJKLMNOPQRSTUVWXYZ".split("");
+    const drives = await Promise.all(
+      driveLetters.map(async (letter) => {
+        const drivePath = `${letter}:\\`;
+        try {
+          await fs.access(drivePath);
+          return {
+            path: drivePath,
+            label: `${letter}:`,
+            accessible: true,
+            type: "drive",
+          };
+        } catch {
+          return null;
+        }
+      })
+    );
+    return drives.filter(Boolean);
   } else {
     try {
       const { stdout } = await execPromise(

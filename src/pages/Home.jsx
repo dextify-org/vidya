@@ -3,13 +3,13 @@ import Navbar from "../components/Navbar/Navbar";
 import PreNav from "../components/Navbar/PreNav";
 import Cards from "../components/Cards/Cards";
 import Tilt from "react-parallax-tilt";
-import Loader from "../components/Loader/Loader.js";
+import Loader from "../components/Loader/Loader.jsx";
 import { useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
 import axios from "../api/axiosInstance.js";
 import { useEffect, useState, useRef } from "react";
-import ContinueWatching from "../components/Cards/ContinueWatching.js";
-import { ChevronRight } from "../assets/index.js";
+import ContinueWatching from "../components/Cards/ContinueWatching.jsx";
+import { ChevronRight } from "../assets/index.jsx";
 
 const Home = ({ category }) => {
   const [homeData, setHomeData] = useState(null);

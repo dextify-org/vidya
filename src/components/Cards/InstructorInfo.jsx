@@ -26,6 +26,7 @@ const InstructorInfo = ({
   };
 
   const formatTime = (duration) => {
+    if (!duration) return "0 Minutes";
     if (duration < 60) {
       return `${duration} seconds`;
     } else if (duration < 3600) {
@@ -145,7 +146,7 @@ const InstructorInfo = ({
             />
           </div>
           <div className="instructor-title">{data.name}</div>
-          <div>Courses : {data.Courses}</div>
+          <div>Courses : {data.courses?.length ?? data.Courses?.length ?? data.totalCourses ?? 0}</div>
           <div>Duration : {formatTime(data.totalCourseDuration)}</div>
 
           {isAdmin && (

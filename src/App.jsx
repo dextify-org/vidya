@@ -6,7 +6,7 @@ import { AuthProvider } from "./context/AuthContext";
 import "./style.css";
 import axios from "./api/axiosInstance.js";
 import { BrowserRouter as Router } from "react-router-dom";
-import { SkeletonLoader } from "./assets/index.js";
+import { SkeletonLoader } from "./assets/index.jsx";
 
 const App = () => {
   const [data, setData] = useState(null);
