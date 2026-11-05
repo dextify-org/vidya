@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { motion } from "framer-motion";
 import Toast from "../Toast/Toast";
 import {
@@ -13,11 +13,31 @@ import {
 } from "../../assets";
 import axios from "../../api/axiosInstance";
 
+const formatElapsed = (seconds) => {
+  const minutes = Math.floor(seconds / 60);
+  const remainingSeconds = seconds % 60;
+  return `${minutes}:${String(remainingSeconds).padStart(2, "0")}`;
+};
+
 const Admin = () => {
   const [selectedUser, setSelectedUser] = useState(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isAddUserModalOpen, setIsAddUserModalOpen] = useState(false);
-  const [isScanning, setIsScanning] = useState(false);
+  const [scanStatus, setScanStatus] = useState({
+    running: false,
+    progress: 0,
+    phase: "",
+    startedAt: null,
+    totalCourses: 0,
+    processedCourses: 0,
+  });
+  const [scanSchedule, setScanSchedule] = useState({
+    enabled: false,
+    intervalHours: 0,
+    nextRunAt: null,
+  });
+  const [scanElapsed, setScanElapsed] = useState(0);
+  const wasScanningRef = useRef(false);
   const [newUserName, setNewUserName] = useState("");
   const [newUserPassword, setNewUserPassword] = useState("");
   const [showConfirmation, setShowConfirmation] = useState(false);
@@ -52,6 +72,100 @@ const Admin = () => {
     };
     fetchData();
   }, []);
+
+  useEffect(() => {
+    let isMounted = true;
+    let eventSource = null;
+
+    const refreshAdminData = async () => {
+      try {
+        const { data } = await axios.get("/api/admin/admin", {
+          withCredentials: true,
+        });
+        if (isMounted) setAdminData(data);
+      } catch (error) {
+        console.error(error);
+      }
+    };
+
+    const loadStatus = async () => {
+      try {
+        const { data } = await axios.get("/api/admin/scan/status", {
+          withCredentials: true,
+        });
+        if (!isMounted) return;
+
+        const { schedule, ...status } = data;
+        setScanStatus(status);
+        if (schedule) setScanSchedule(schedule);
+        wasScanningRef.current = Boolean(status.running);
+      } catch (error) {
+        console.error(error);
+      }
+    };
+
+    const connectEvents = () => {
+      try {
+        eventSource = new EventSource("/api/admin/scan/events");
+
+        eventSource.onmessage = (event) => {
+          try {
+            const data = JSON.parse(event.data);
+            const { schedule, ...status } = data;
+            setScanStatus(status);
+            if (schedule) setScanSchedule(schedule);
+
+            if (!status.running && wasScanningRef.current) {
+              refreshAdminData();
+              setToastType(status.error ? "error" : "success");
+              setToastMessage(status.error ? "scan failed" : "folders scanned");
+              setShowToast(true);
+            }
+
+            wasScanningRef.current = Boolean(status.running);
+          } catch (error) {
+            console.error(error);
+          }
+        };
+
+        eventSource.onerror = () => {
+          console.error("Scan event stream disconnected");
+        };
+      } catch (error) {
+        console.error(error);
+      }
+    };
+
+    loadStatus().finally(() => {
+      if (isMounted) connectEvents();
+    });
+
+    return () => {
+      isMounted = false;
+      eventSource?.close();
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!scanStatus.running || !scanStatus.startedAt) {
+      setScanElapsed(0);
+      return;
+    }
+
+    const updateElapsed = () => {
+      const startedAt = new Date(scanStatus.startedAt).getTime();
+      setScanElapsed(
+        Number.isFinite(startedAt)
+          ? Math.max(0, Math.floor((Date.now() - startedAt) / 1000))
+          : 0
+      );
+    };
+
+    updateElapsed();
+    const timer = setInterval(updateElapsed, 1000);
+
+    return () => clearInterval(timer);
+  }, [scanStatus.running, scanStatus.startedAt]);
 
   const openModal = (user) => {
     setSelectedUser(user);
@@ -309,22 +423,68 @@ const Admin = () => {
     }
   };
   const handleScan = async () => {
-    try {
+    if (scanStatus.running) {
       setToastType("warning");
-      setToastMessage("scanning folders");
+      setToastMessage("scan already in progress");
       setShowToast(true);
-      setIsScanning(true);
-      await axios.post("/api/admin/scan", {}, { withCredentials: true });
+      return;
+    }
+
+    try {
+      const response = await axios.post(
+        "/api/admin/scan",
+        {},
+        { withCredentials: true }
+      );
+
+      if (response.status === 202) {
+        wasScanningRef.current = true;
+        setScanStatus((prev) => ({
+          ...prev,
+          running: true,
+          progress: 0,
+          phase: "Starting scan",
+          startedAt: new Date().toISOString(),
+          totalCourses: 0,
+          processedCourses: 0,
+          error: null,
+        }));
+        setToastType("warning");
+        setToastMessage("scanning folders");
+        setShowToast(true);
+      }
+    } catch (error) {
+      console.error(error);
+      const alreadyRunning = error.response?.status === 409;
+      setToastType(alreadyRunning ? "warning" : "error");
+      setToastMessage(
+        alreadyRunning ? "scan already in progress" : "error scanning"
+      );
+      setShowToast(true);
+    }
+  };
+
+  const handleScheduleChange = async (event) => {
+    const intervalHours = Number(event.target.value);
+
+    try {
+      const { data } = await axios.post(
+        "/api/admin/scan/schedule",
+        { intervalHours },
+        { withCredentials: true }
+      );
+
+      if (data.schedule) setScanSchedule(data.schedule);
       setToastType("success");
-      setToastMessage("folders scanned");
+      setToastMessage(
+        intervalHours > 0 ? "scan schedule updated" : "scheduled scan disabled"
+      );
       setShowToast(true);
-      setIsScanning(false);
     } catch (error) {
       console.error(error);
       setToastType("error");
-      setToastMessage("error scanning");
+      setToastMessage("failed to update scan schedule");
       setShowToast(true);
-      setIsScanning(false);
     }
   };
 
@@ -375,6 +535,19 @@ const Admin = () => {
     { id: "profile", label: "Profile" },
     { id: "admin", label: "Admin" },
   ];
+
+  const scheduleOptions = [
+    { value: 0, label: "Disabled" },
+    { value: 6, label: "Every 6 hours" },
+    { value: 12, label: "Every 12 hours" },
+    { value: 24, label: "Daily" },
+    { value: 168, label: "Weekly" },
+  ];
+
+  const scanProgress = Math.max(
+    0,
+    Math.min(100, Number(scanStatus.progress) || 0)
+  );
 
   const FileBrowser = ({ onSelect }) => {
     const [currentPath, setCurrentPath] = useState("");
@@ -658,15 +831,76 @@ const Admin = () => {
             <FolderPlusSolid />
           </div>
         </div>
-        <div style={{ cursor: "pointer" }} onClick={handleScan}>
+        <div
+          style={{
+            cursor: scanStatus.running ? "not-allowed" : "pointer",
+            opacity: scanStatus.running ? 0.6 : 1,
+          }}
+          onClick={scanStatus.running ? undefined : handleScan}
+        >
           Scan Folders
           <div
-            className={`svg-div folder-refresh ${isScanning ? "rotating" : ""}`}
+            className={`svg-div folder-refresh ${
+              scanStatus.running ? "rotating" : ""
+            }`}
           >
             <Refresh />
           </div>
         </div>
       </div>
+      {scanStatus.running && (
+        <div className="scan-progress-card">
+          <div className="scan-progress-header">
+            <span>Scanning library...</span>
+            <span>{scanProgress}%</span>
+          </div>
+          <div className="scan-progress-track">
+            <motion.div
+              className="scan-progress-fill"
+              initial={{ width: 0 }}
+              animate={{ width: `${scanProgress}%` }}
+            />
+          </div>
+          <div className="scan-progress-phase">
+            {scanStatus.phase || "Preparing scan"}
+          </div>
+          <div className="scan-progress-meta">
+            <span>
+              {scanStatus.totalCourses > 0
+                ? `${scanStatus.processedCourses}/${scanStatus.totalCourses} courses`
+                : "Preparing courses"}
+            </span>
+            <span>{formatElapsed(scanElapsed)} elapsed</span>
+          </div>
+        </div>
+      )}
+      <div className="scan-schedule-row">
+        <label htmlFor="scan-schedule">Scheduled Scan:</label>
+        <select
+          id="scan-schedule"
+          value={scanSchedule.intervalHours || 0}
+          onChange={handleScheduleChange}
+        >
+          {scheduleOptions.map((option) => (
+            <option key={option.value} value={option.value}>
+              {option.label}
+            </option>
+          ))}
+          {scanSchedule.intervalHours > 0 &&
+            !scheduleOptions.some(
+              (option) => option.value === scanSchedule.intervalHours
+            ) && (
+              <option value={scanSchedule.intervalHours}>
+                Every {scanSchedule.intervalHours} hours
+              </option>
+            )}
+        </select>
+      </div>
+      {scanSchedule.enabled && scanSchedule.nextRunAt && (
+        <div className="scan-schedule-next">
+          Next scan: {new Date(scanSchedule.nextRunAt).toLocaleString()}
+        </div>
+      )}
       <div className="users-title">
         Users
         <div

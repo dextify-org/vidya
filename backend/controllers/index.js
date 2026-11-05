@@ -1,8 +1,10 @@
 import {
   register,
-  scan,
   addCourseFolder,
   deleteFolder,
+  normalizePath,
+  scanForDirectory,
+  syncCourseDirectory,
 } from "./courseController.js";
 import {
   createUser,
@@ -33,7 +35,6 @@ import { doSearch } from "./searchController.js";
 
 export {
   register,
-  scan,
   createUser,
   getAdminData,
   uploadImageCourse,
@@ -45,6 +46,9 @@ export {
   getAllInstructor,
   individualInstructor,
   addCourseFolder,
+  normalizePath,
+  scanForDirectory,
+  syncCourseDirectory,
   getUserDashboardAnalytics,
   deleteFolder,
   updateUser,

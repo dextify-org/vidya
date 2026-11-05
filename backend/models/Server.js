@@ -13,6 +13,8 @@ const Server = sequelize.define("Server", {
     allowNull: false,
   },
   isFirstStartUp: { type: DataTypes.BOOLEAN, defaultValue: true },
+  scanIntervalHours: { type: DataTypes.INTEGER, defaultValue: 0 },
+  lastScanAt: { type: DataTypes.DATE, allowNull: true },
 });
 
 export default Server;

@@ -810,24 +810,6 @@ const register = async (req, res) => {
   }
 };
 
-const scan = async (req, res) => {
-  try {
-    const coursefolder = await CourseFolder.findAll();
-
-    for (const folder of coursefolder) {
-      const individualCourseDirectory = await scanForDirectory(
-        folder.directory,
-      );
-      for (const individualCourse of individualCourseDirectory) {
-        await syncCourseDirectory(normalizePath(individualCourse), folder.id);
-      }
-    }
-  } catch (error) {
-    res.status(500).send("Error updating the course");
-    console.error(error);
-  }
-  res.status(201).send("successfully updated the course");
-};
 const addCourseFolder = async (req, res) => {
   try {
     const folders = await Promise.all(
@@ -879,4 +861,11 @@ const deleteFolder = async (req, res) => {
     res.status(500).send("Error removing folder");
   }
 };
-export { register, scan, addCourseFolder, deleteFolder };
+export {
+  register,
+  addCourseFolder,
+  deleteFolder,
+  normalizePath,
+  scanForDirectory,
+  syncCourseDirectory,
+};

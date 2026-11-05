@@ -23,6 +23,7 @@ import path from "path";
 import { ASSETS_PATH, WEB_PATH, PORT } from "./config/path.js";
 import { expressSecret } from "./config/secrets.js";
 import { warmUpVideoEncoder } from "./utils/transcode.js";
+import { scanManager } from "./utils/scanManager.js";
 import { DataTypes } from "sequelize";
 const SequelizeStore = sessionConnect(session.Store);
 const app = express();
@@ -51,14 +52,52 @@ const ensureUserPreferences = async () => {
   }
 };
 
+const ensureServerScanColumns = async () => {
+  const queryInterface = sequelize.getQueryInterface();
+
+  try {
+    const tables = await queryInterface.showAllTables();
+    const serversTable = tables.find(
+      (table) => String(table?.tableName || table).toLowerCase() === "servers",
+    );
+
+    if (!serversTable) return;
+
+    const description = await queryInterface.describeTable(serversTable);
+
+    if (!description.scanIntervalHours) {
+      await queryInterface.addColumn(serversTable, "scanIntervalHours", {
+        type: DataTypes.INTEGER,
+        defaultValue: 0,
+      });
+      console.log("Added Servers.scanIntervalHours column");
+    }
+
+    if (!description.lastScanAt) {
+      await queryInterface.addColumn(serversTable, "lastScanAt", {
+        type: DataTypes.DATE,
+        allowNull: true,
+      });
+      console.log("Added Servers.lastScanAt column");
+    }
+  } catch (error) {
+    console.error("Failed to migrate server scan settings:", error);
+  }
+};
+
 const syncdb = async () => {
   await sequelize.sync({ logging: false });
   console.log("Database & tables created!");
   await ensureUserPreferences();
-  await Server.findOrCreate({
+  await ensureServerScanColumns();
+  const [server] = await Server.findOrCreate({
     where: { name: "VIDYA" },
     defaults: { name: "VIDYA" },
   });
+
+  if (server.scanIntervalHours > 0) {
+    scanManager.setSchedule(server.scanIntervalHours);
+  }
 };
 syncdb();
 
