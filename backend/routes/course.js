@@ -22,6 +22,12 @@ import {
   getVideoEncoder,
   spawnTranscode,
 } from "../utils/transcode.js";
+import {
+  openHlsSession,
+  getHlsSession,
+  sendHlsPlaylist,
+  sendHlsSegment,
+} from "../utils/hlsSession.js";
 const router = Router();
 const videoQualityPattern = /^(direct|auto|original|\d{3,4}p)$/;
 const convertSRTToWebVTT = (srtContent) => {
@@ -321,6 +327,109 @@ router.get(
     } catch (error) {
       console.error("Error resolving video qualities:", error);
       res.status(500).send("Internal server error");
+    }
+  }
+);
+
+const sendHlsFailure = (res, error) => {
+  if (res.headersSent) {
+    res.end();
+    return;
+  }
+  const status = Number(error?.status) || 500;
+  console.error("HLS stream error:", error?.message || error);
+  res.status(status).json({
+    message: error?.message || "HLS stream error",
+    code: error?.code || "HLS_ERROR",
+  });
+};
+
+const openSessionForLecture = async (req, res) => {
+  const lecture = await findVideoLecture(req.params.LectureId);
+  if (!lecture) {
+    res.status(404).send("Video not found");
+    return null;
+  }
+
+  const quality = await getQualityProfiles(lecture.path);
+  if (!quality) {
+    res.status(415).send("Unsupported video format");
+    return null;
+  }
+
+  const requestedProfile = String(req.query.profile || "auto");
+  const profile =
+    requestedProfile === "auto"
+      ? resolveAutoProfile(quality.profiles)
+      : resolveProfile(quality.profiles, requestedProfile);
+
+  if (!profile) {
+    res.status(400).json({ message: "Invalid quality profile" });
+    return null;
+  }
+
+  if (profile.kind === "direct") {
+    streamVideoFile(req, res, lecture.path);
+    return null;
+  }
+
+  return openHlsSession({
+    lectureId: lecture.id,
+    lecturePath: lecture.path,
+    profile,
+    metadata: quality.metadata,
+    start: req.query.start,
+    viewer: req.query.viewer,
+  });
+};
+
+router.get(
+  "/hls/session/:sid/playlist.m3u8",
+  verifyQueryToken,
+  isAuthenticated,
+  async (req, res) => {
+    const session = getHlsSession(req.params.sid);
+    if (!session) {
+      return res.status(404).send("HLS session not found");
+    }
+
+    try {
+      await sendHlsPlaylist(req, res, session, { token: req.query.token });
+    } catch (error) {
+      sendHlsFailure(res, error);
+    }
+  }
+);
+
+router.get(
+  "/hls/session/:sid/:segment",
+  verifyQueryToken,
+  isAuthenticated,
+  async (req, res) => {
+    const session = getHlsSession(req.params.sid);
+    if (!session) {
+      return res.status(404).send("HLS session not found");
+    }
+
+    try {
+      await sendHlsSegment(req, res, session, req.params.segment);
+    } catch (error) {
+      sendHlsFailure(res, error);
+    }
+  }
+);
+
+router.get(
+  "/hls/:LectureId/playlist.m3u8",
+  verifyQueryToken,
+  isAuthenticated,
+  async (req, res) => {
+    try {
+      const session = await openSessionForLecture(req, res);
+      if (!session) return;
+      await sendHlsPlaylist(req, res, session, { token: req.query.token });
+    } catch (error) {
+      sendHlsFailure(res, error);
     }
   }
 );

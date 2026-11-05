@@ -27,3 +27,4 @@ VIDYA-x64.exe
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
+/transcode-cache

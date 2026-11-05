@@ -23,6 +23,10 @@ import path from "path";
 import { ASSETS_PATH, WEB_PATH, PORT } from "./config/path.js";
 import { expressSecret } from "./config/secrets.js";
 import { warmUpVideoEncoder } from "./utils/transcode.js";
+import {
+  initHlsSessions,
+  shutdownHlsSessions,
+} from "./utils/hlsSession.js";
 import { scanManager } from "./utils/scanManager.js";
 import { DataTypes } from "sequelize";
 const SequelizeStore = sessionConnect(session.Store);
@@ -201,6 +205,25 @@ app.get("/isFirstStartUp", async (req, res) => {
 app.get("*", (req, res) => {
   res.sendFile(path.join(WEB_PATH, "index.html"));
 });
+try {
+  await initHlsSessions();
+} catch (error) {
+  console.error("[hls] failed to initialise session storage:", error);
+}
+
+const shutdown = async (signal) => {
+  console.log(`Received ${signal}, shutting down...`);
+  try {
+    await shutdownHlsSessions();
+  } catch (error) {
+    console.error("[hls] shutdown error:", error);
+  }
+  process.exit(0);
+};
+
+process.once("SIGINT", () => shutdown("SIGINT"));
+process.once("SIGTERM", () => shutdown("SIGTERM"));
+
 app.listen(PORT, () => {
   console.log(`Server is running on port ${PORT}`);
   warmUpVideoEncoder();

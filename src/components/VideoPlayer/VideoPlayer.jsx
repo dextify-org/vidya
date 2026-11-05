@@ -346,6 +346,39 @@ const Controls = memo(
 
 const standardQualityPattern = /^\d{3,4}p$/;
 
+const HLS_MIME_TYPE = "application/vnd.apple.mpegurl";
+
+const isSafariOrIos = () => {
+  if (typeof navigator === "undefined") return false;
+  const ua = navigator.userAgent || "";
+  const isIos =
+    /iPad|iPhone|iPod/.test(ua) ||
+    (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+  const isSafari =
+    /Safari\//.test(ua) &&
+    !/Chrome\/|Chromium|CriOS|Edg\/|EdgiOS|OPR\/|SamsungBrowser|Firefox\/|FxiOS/.test(
+      ua
+    );
+  return isIos || isSafari;
+};
+
+const detectNativeHls = () => {
+  if (typeof document === "undefined") return false;
+  try {
+    return (
+      isSafariOrIos() &&
+      document.createElement("video").canPlayType(HLS_MIME_TYPE) !== ""
+    );
+  } catch (error) {
+    return false;
+  }
+};
+
+const nativeHlsSupported = detectNativeHls();
+
+const isHlsSource = (src) =>
+  typeof src === "string" && src.includes("/api/course/hls/");
+
 const isPresetProfile = (profile) =>
   profile.kind === "transcode" && !profile.isOriginal;
 
@@ -444,6 +477,12 @@ const VideoPlayer = ({
   const shouldResumeRef = useRef(false);
   const hasPlayedRef = useRef(false);
   const autoStateRef = useRef({ lastSwitch: 0, stallCount: 0, lastStall: 0 });
+  const viewerIdRef = useRef(
+    typeof crypto !== "undefined" && typeof crypto.randomUUID === "function"
+      ? crypto.randomUUID()
+      : `viewer-${Math.random().toString(36).slice(2)}`
+  );
+  const hlsFallbackRef = useRef(false);
   const seekThreshold = 1;
 
   const [state, setState] = useState({
@@ -525,9 +564,15 @@ const VideoPlayer = ({
       const src =
         resolved.kind === "direct"
           ? `/api/course/stream/${LectureId}`
-          : `/api/course/transcode/${LectureId}?profile=${encodeURIComponent(
-              resolved.id
-            )}&start=${start.toFixed(2)}`;
+          : nativeHlsSupported && !hlsFallbackRef.current
+            ? `/api/course/hls/${LectureId}/playlist.m3u8?profile=${encodeURIComponent(
+                resolved.id
+              )}&start=${start.toFixed(2)}&viewer=${encodeURIComponent(
+                viewerIdRef.current
+              )}`
+            : `/api/course/transcode/${LectureId}?profile=${encodeURIComponent(
+                resolved.id
+              )}&start=${start.toFixed(2)}`;
 
       const sameSource = src === videoSrcRef.current;
       const video = videoRef.current;
@@ -945,6 +990,33 @@ const VideoPlayer = ({
         return;
       }
 
+      if (isHlsSource(videoSrcRef.current)) {
+        const offset = sourceOffsetRef.current;
+        const producedEnd =
+          offset +
+          (video.seekable.length
+            ? video.seekable.end(video.seekable.length - 1)
+            : video.buffered.length
+              ? video.buffered.end(video.buffered.length - 1)
+              : 0);
+        const canSeekLocally =
+          video.readyState >= 1 &&
+          target >= offset - 0.25 &&
+          target <= producedEnd + 1;
+
+        if (canSeekLocally) {
+          previousTimeRef.current = target;
+          video.currentTime = Math.max(0, target - offset);
+          setState((prev) => ({ ...prev, currentTime: target }));
+          return;
+        }
+
+        applyStream(current?.quality || "auto", target, {
+          shouldPlay: !video.paused,
+        });
+        return;
+      }
+
       const offset = sourceOffsetRef.current;
       const bufferedEnd =
         offset +
@@ -1179,6 +1251,22 @@ const VideoPlayer = ({
       }));
     };
 
+    const handleError = () => {
+      const currentSrc = videoSrcRef.current;
+      if (hlsFallbackRef.current || !isHlsSource(currentSrc)) return;
+      if (video.error?.code !== 4) return;
+
+      hlsFallbackRef.current = true;
+      console.warn(
+        "HLS playback is not supported by this browser; falling back to the fMP4 stream"
+      );
+
+      const absolute = sourceOffsetRef.current + (video.currentTime || 0);
+      applyStream(stateRef.current?.quality || "auto", absolute, {
+        shouldPlay: true,
+      });
+    };
+
     video.addEventListener("timeupdate", handleTimeUpdate);
     video.addEventListener("progress", handleProgress);
     video.addEventListener("ended", handleVideoEnd);
@@ -1187,6 +1275,7 @@ const VideoPlayer = ({
     video.addEventListener("stalled", handleStall);
     video.addEventListener("play", handlePlay);
     video.addEventListener("pause", handlePause);
+    video.addEventListener("error", handleError);
 
     return () => {
       video.removeEventListener("timeupdate", handleTimeUpdate);
@@ -1197,12 +1286,14 @@ const VideoPlayer = ({
       video.removeEventListener("stalled", handleStall);
       video.removeEventListener("play", handlePlay);
       video.removeEventListener("pause", handlePause);
+      video.removeEventListener("error", handleError);
     };
   }, [
     handleTimeUpdate,
     handleProgress,
     handleVideoEnd,
     handleStall,
+    applyStream,
     subtitles,
     videoDuration,
   ]);
@@ -1239,6 +1330,7 @@ const VideoPlayer = ({
         className="video-element"
         onClick={handlePlayPause}
         crossOrigin="use-credentials"
+        playsInline
         key={LectureId}
       >
         {subtitles && subtitles.length > 0

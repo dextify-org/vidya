@@ -417,9 +417,12 @@ const getScaleFilter = (encoder, height) => {
   return `scale=-2:${height}:flags=lanczos`;
 };
 
-const getVideoCodecArgs = (encoder, profile, metadata) => {
+const getVideoCodecArgs = (encoder, profile, metadata, gopSeconds = 2) => {
   const args = ["-c:v", encoder.name];
-  const gop = Math.max(1, Math.round((profile.fps || metadata.fps || 30) * 2));
+  const gop = Math.max(
+    1,
+    Math.round((profile.fps || metadata.fps || 30) * gopSeconds),
+  );
 
   switch (encoder.key) {
     case "nvenc":
@@ -605,4 +608,109 @@ export const spawnTranscode = ({ input, profile, metadata, encoder, start }) => 
   });
 
   return { child, seek };
+};
+
+export const hlsSegmentDuration = 4;
+
+export const buildHlsArgs = ({
+  input,
+  profile,
+  metadata,
+  encoder,
+  start = 0,
+  segmentDuration = hlsSegmentDuration,
+  playlistPath,
+  segmentFilename,
+}) => {
+  const args = ["-hide_banner", "-loglevel", "error", "-nostdin"];
+  const seek = clampStart(start, metadata.duration);
+
+  if (seek > 0) {
+    args.push("-ss", seek.toFixed(3));
+  }
+
+  args.push("-i", input);
+  args.push("-map", "0:v:0");
+  if (metadata.hasAudio) args.push("-map", "0:a:0?");
+  args.push("-sn", "-dn");
+
+  if (encoder.key === "vaapi" && encoder.device) {
+    args.push("-vaapi_device", encoder.device);
+  }
+
+  args.push("-vf", getScaleFilter(encoder, profile.height));
+  args.push(...getVideoCodecArgs(encoder, profile, metadata, segmentDuration));
+
+  args.push(
+    "-sc_threshold",
+    "0",
+    "-force_key_frames",
+    `expr:gte(t,n_forced*${segmentDuration})`,
+  );
+
+  if (metadata.hasAudio) {
+    args.push(
+      "-c:a",
+      "aac",
+      "-b:a",
+      String(audioBitrate),
+      "-ac",
+      "2",
+      "-ar",
+      "48000",
+    );
+  } else {
+    args.push("-an");
+  }
+
+  args.push(
+    "-f",
+    "hls",
+    "-hls_time",
+    String(segmentDuration),
+    "-hls_playlist_type",
+    "event",
+    "-hls_list_size",
+    "0",
+    "-hls_flags",
+    "independent_segments",
+    "-hls_segment_filename",
+    segmentFilename,
+    playlistPath,
+  );
+
+  return { args, seek };
+};
+
+export const spawnHlsTranscode = ({
+  input,
+  profile,
+  metadata,
+  encoder,
+  start,
+  playlistPath,
+  segmentFilename,
+}) => {
+  const { args, seek } = buildHlsArgs({
+    input,
+    profile,
+    metadata,
+    encoder,
+    start,
+    playlistPath,
+    segmentFilename,
+  });
+
+  const child = spawn(ffmpegPath, args, {
+    stdio: ["ignore", "ignore", "pipe"],
+    windowsHide: true,
+  });
+
+  let stderr = "";
+  child.stderr.on("data", (chunk) => {
+    stderr += chunk.toString();
+    if (stderr.length > 16384) stderr = stderr.slice(-16384);
+  });
+
+  return { child, seek, getStderr: () => stderr };
 };
