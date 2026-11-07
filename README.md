@@ -15,7 +15,7 @@
 
 <p align="center">
 <img alt="License" src="https://img.shields.io/badge/license-GPLv3-blue.svg">
-<img alt="Version" src="https://img.shields.io/badge/version-1.0.0-green.svg">
+<img alt="Version" src="https://img.shields.io/badge/version-1.1.0-green.svg">
 <img alt="Platform" src="https://img.shields.io/badge/platform-Windows%20%7C%20Linux%20%7C%20macOS%20%7C%20Docker-lightgrey.svg">
 </p>
 
@@ -49,7 +49,7 @@ VIDYA is a self-hosted media server built specifically for video lectures and ed
 | **Backend**          | Node.js, Express.js                   |
 | **Database**         | SQLite (via Sequelize ORM)            |
 | **Authentication**   | Passport.js with local strategy       |
-| **Media Processing** | FFprobe, Sharp                        |
+| **Media Processing** | FFmpeg, FFprobe, Sharp                |
 | **Windows Tray App** | .NET 6.0 (C#)                         |
 | **Installer**        | NSIS                                  |
 | **Containerization** | Docker                                |
@@ -152,7 +152,7 @@ The `build-windows.ps1` script automates the entire Windows build process:
 3. Cleans and creates a `staging/app/` directory
 4. Copies the backend into `staging/app/` (excluding `node_modules`)
 5. Installs production-only backend dependencies inside `staging/app/`
-6. Runs NSIS to compile the installer (`VIDYA-x64.exe`)
+6. Reads the version from `package.json` and runs NSIS to compile the installer (`VIDYA-x64.exe`)
 
 **Requirements:**
 
@@ -237,6 +237,8 @@ Download from [nodejs.org](https://nodejs.org/en/download/) — use the Windows 
 # Find NSIS and compile installer
 & "C:\Program Files (x86)\NSIS\makensis.exe" installer.nsi
 ```
+
+The installer version comes from the `APPVERSION` fallback in `installer.nsi`; pass `/DAPPVERSION=<version>` to override it (e.g. `/DAPPVERSION=1.1.0`) so it matches `package.json`.
 
 This produces `VIDYA-x64.exe` — a full Windows installer that:
 
@@ -496,6 +498,7 @@ VIDYA is built with these excellent open-source projects:
 - [Sequelize](https://sequelize.org/) — ORM for SQLite
 - [Passport.js](http://www.passportjs.org/) — Authentication middleware
 - [Sharp](https://sharp.pixelplumbing.com/) — Image processing
+- [FFmpeg](https://ffmpeg.org/) — Transcoding and HLS streaming
 - [FFprobe](https://ffmpeg.org/ffprobe.html) — Media analysis
 - [Framer Motion](https://www.framer.com/motion/) — Animation library
 - [NSIS](https://nsis.sourceforge.io/) — Windows installer compiler

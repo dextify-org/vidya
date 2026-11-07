@@ -2,11 +2,25 @@
 !include "LogicLib.nsh"
 !include "FileFunc.nsh"
 
+; Version is normally injected by build-windows.ps1 from package.json
+; (makensis /DAPPVERSION=<version> installer.nsi). The fallback below is used
+; for manual builds - keep it in sync with "version" in package.json.
+!ifndef APPVERSION
+  !define APPVERSION "1.1.0"
+!endif
 !define APPNAME "VIDYA"
-!define APPVERSION "1.0.0"
 !define PUBLISHER "DEXTIFY"
 !define WEBSITE "https://vidya.media"
 !define DESCRIPTION "A media server for video lectures"
+
+; Version metadata shown in the installer's file properties dialog
+VIProductVersion "${APPVERSION}.0"
+VIAddVersionKey /LANG=1033 "ProductName" "${APPNAME}"
+VIAddVersionKey /LANG=1033 "ProductVersion" "${APPVERSION}"
+VIAddVersionKey /LANG=1033 "FileVersion" "${APPVERSION}"
+VIAddVersionKey /LANG=1033 "CompanyName" "${PUBLISHER}"
+VIAddVersionKey /LANG=1033 "FileDescription" "${DESCRIPTION}"
+VIAddVersionKey /LANG=1033 "LegalCopyright" "Copyright (C) 2026 ${PUBLISHER}"
 
 InstallDir "$PROGRAMFILES64\${APPNAME}"
 

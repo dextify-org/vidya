@@ -75,6 +75,11 @@ if ($LASTEXITCODE -ne 0) { Write-Error "npm install failed."; exit 1 }
 Write-Host ">>> Running NSIS compiler..." -ForegroundColor Cyan
 Set-Location $RepoRoot
 
+$PackageJson = Get-Content (Join-Path $RepoRoot "package.json") -Raw | ConvertFrom-Json
+$AppVersion = $PackageJson.version
+if (-not $AppVersion) { Write-Error "Could not read the app version from package.json"; exit 1 }
+Write-Host ">>> Application version: $AppVersion" -ForegroundColor Cyan
+
 $NsisPaths = @(
     "C:\Program Files (x86)\NSIS\makensis.exe",
     "C:\Program Files\NSIS\makensis.exe"
@@ -85,7 +90,7 @@ if (-not $Makensis) {
     exit 1
 }
 
-& $Makensis "installer.nsi"
+& $Makensis "/DAPPVERSION=$AppVersion" "installer.nsi"
 if ($LASTEXITCODE -ne 0) { Write-Error "NSIS compilation failed."; exit 1 }
 
 Write-Host ">>> Build complete! Installer created." -ForegroundColor Green
