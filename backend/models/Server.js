@@ -13,7 +13,11 @@ const Server = sequelize.define("Server", {
     allowNull: false,
   },
   isFirstStartUp: { type: DataTypes.BOOLEAN, defaultValue: true },
-  scanIntervalHours: { type: DataTypes.INTEGER, defaultValue: 0 },
+  scanTrigger: { type: DataTypes.STRING, defaultValue: "disabled" },
+  scanIntervalValue: { type: DataTypes.INTEGER, defaultValue: 0 },
+  scanIntervalUnit: { type: DataTypes.STRING, defaultValue: "hours" },
+  scanTime: { type: DataTypes.STRING, defaultValue: "02:00" },
+  scanDays: { type: DataTypes.JSON, defaultValue: [] },
   lastScanAt: { type: DataTypes.DATE, allowNull: true },
 });
 

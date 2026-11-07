@@ -1287,39 +1287,240 @@ select option {
   opacity: 0.8;
 }
 
-.scan-schedule-row {
+.scan-schedule {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
+}
+
+.scan-schedule-label {
+  margin: 1rem 0 0;
   display: flex;
   align-items: center;
-  gap: 1rem;
-  margin-top: 1rem;
+  font-weight: 500;
 }
 
-.scan-schedule-row select {
-  width: auto;
-  min-width: 12rem;
+.scan-schedule-controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.6rem;
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
+}
+
+.scan-schedule-fields {
+  display: flex;
+  flex: 0 1 auto;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.6rem;
+  min-width: 0;
+}
+
+.scan-schedule .scan-schedule-controls select,
+.scan-schedule .scan-schedule-controls input,
+.scan-schedule .scan-schedule-save {
+  box-sizing: border-box;
   height: 2.5rem;
   margin: 0;
-  padding: 0 0.85rem;
-  border: 1px solid rgba(255, 255, 255, 0.6);
+  padding: 0 0.8rem;
+  border: 1px solid rgba(255, 255, 255, 0.5);
   border-radius: 0.7rem;
   background-color: rgba(255, 255, 255, 0.2);
-  cursor: pointer;
-  transition: background-color 0.2s ease-in-out;
+  color: inherit;
+  font-family: inherit;
+  font-size: inherit;
+  line-height: 1.2;
+  min-width: 0;
+  transition: background-color 0.2s ease-in-out, opacity 0.2s ease-in-out;
 }
 
-.scan-schedule-row select:hover {
+.scan-schedule .scan-schedule-controls select.scan-trigger-select {
+  flex: 0 1 13.5rem;
+  width: 13.5rem;
+  max-width: 100%;
+  cursor: pointer;
+}
+
+.scan-schedule .scan-schedule-controls input.scan-number-input {
+  flex: 0 1 5.5rem;
+  width: 5.5rem;
+  color-scheme: dark;
+}
+
+.scan-schedule .scan-schedule-controls select.scan-unit-select {
+  flex: 0 1 7.5rem;
+  width: 7.5rem;
+  max-width: 100%;
+}
+
+.scan-schedule .scan-schedule-controls input.scan-time-input {
+  flex: 0 1 10.5rem;
+  width: 10.5rem;
+  max-width: 100%;
+  color-scheme: dark;
+}
+
+.scan-schedule
+  .scan-schedule-controls
+  input.scan-time-input::-webkit-calendar-picker-indicator {
+  margin-left: 0.6rem;
+  padding-left: 0.2rem;
+  cursor: pointer;
+}
+
+.scan-schedule .scan-schedule-controls select:hover,
+.scan-schedule .scan-schedule-controls input:hover,
+.scan-schedule .scan-schedule-save:hover:not(:disabled) {
   background-color: rgba(255, 255, 255, 0.3);
 }
 
-.scan-schedule-row select:focus {
+.scan-schedule .scan-schedule-controls select:focus,
+.scan-schedule .scan-schedule-controls input:focus,
+.scan-schedule .scan-schedule-save:focus-visible {
   outline: 2px solid rgba(255, 255, 255, 0.6);
   outline-offset: 2px;
 }
 
+.scan-schedule .scan-schedule-save {
+  flex: 0 0 auto;
+  order: 1;
+  width: auto;
+  padding: 0 1.1rem;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.scan-schedule .scan-schedule-save:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+.scan-weekdays {
+  display: flex;
+  flex: 1 0 100%;
+  flex-wrap: wrap;
+  order: 2;
+  gap: 0.45rem;
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
+}
+
+.scan-weekday {
+  display: inline-flex;
+  flex: 1 1 4rem;
+  align-items: center;
+  justify-content: center;
+  gap: 0.3rem;
+  box-sizing: border-box;
+  min-width: 0;
+  padding: 0.4rem 0.35rem;
+  border: 1px solid rgba(255, 255, 255, 0.35);
+  border-radius: 0.6rem;
+  font-size: inherit;
+  white-space: nowrap;
+  opacity: 0.75;
+  cursor: pointer;
+  transition: opacity 0.2s ease-in-out, background-color 0.2s ease-in-out;
+}
+
+.scan-weekday.active {
+  background-color: rgba(255, 255, 255, 0.2);
+  border-color: rgba(255, 255, 255, 0.85);
+  opacity: 1;
+}
+
+.scan-weekday input {
+  margin: 0;
+  accent-color: #ffffff;
+}
+
 .scan-schedule-next {
-  margin-top: 0.4rem;
-  font-size: 0.85rem;
-  opacity: 0.8;
+  font-size: inherit;
+  line-height: 1.4;
+  opacity: 0.85;
+  word-break: break-word;
+}
+
+/* Match the sizing of the other admin sections on phones and portrait tablets */
+@media screen and (max-width: 640px),
+  screen and (max-width: 845px) and (orientation: portrait) {
+  .scan-schedule {
+    gap: 1rem;
+    max-width: 40rem;
+  }
+
+  .scan-schedule-label {
+    margin: 1.25rem 0 0;
+  }
+
+  .scan-schedule-controls {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    row-gap: 1.25rem;
+    column-gap: 0.8rem;
+  }
+
+  .scan-schedule-fields {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    gap: 0.8rem;
+    width: 100%;
+  }
+
+  .scan-schedule .scan-schedule-controls select,
+  .scan-schedule .scan-schedule-controls input,
+  .scan-schedule .scan-schedule-save {
+    height: 3.6rem;
+    padding: 0 0.9rem;
+    border-radius: 0.7rem;
+    font-size: inherit;
+  }
+
+  .scan-schedule .scan-schedule-controls select.scan-trigger-select,
+  .scan-schedule .scan-schedule-controls input.scan-number-input,
+  .scan-schedule .scan-schedule-controls select.scan-unit-select,
+  .scan-schedule .scan-schedule-controls input.scan-time-input,
+  .scan-schedule .scan-schedule-save {
+    width: 100%;
+    max-width: none;
+    flex: none;
+  }
+
+  .scan-schedule .scan-schedule-controls input.scan-time-input {
+    grid-column: 1 / -1;
+  }
+
+  .scan-schedule .scan-schedule-save {
+    order: 3;
+    margin-top: 0.2rem;
+  }
+
+  .scan-weekdays {
+    flex-basis: 100%;
+    order: 2;
+    gap: 0.5rem;
+    margin: 0.2rem 0;
+  }
+
+  .scan-weekday {
+    flex: 1 1 calc(25% - 0.5rem);
+    min-height: 3rem;
+    padding: 0.5rem 0.3rem;
+    border-radius: 0.6rem;
+    font-size: inherit;
+  }
+
+  .scan-schedule-next {
+    font-size: inherit;
+    line-height: 1.4;
+  }
 }
 
 .users-title {
@@ -2182,7 +2383,7 @@ input[type="file"]::file-selector-button:hover {
 
 .quality-button-label {
   color: whitesmoke;
-  font-size: 0.8rem;
+  font-size: inherit;
   white-space: nowrap;
 }
 

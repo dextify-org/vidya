@@ -23,15 +23,11 @@ import path from "path";
 import { ASSETS_PATH, WEB_PATH, PORT } from "./config/path.js";
 import { expressSecret } from "./config/secrets.js";
 import { warmUpVideoEncoder } from "./utils/transcode.js";
-import {
-  initHlsSessions,
-  shutdownHlsSessions,
-} from "./utils/hlsSession.js";
+import { initHlsSessions, shutdownHlsSessions } from "./utils/hlsSession.js";
 import { scanManager } from "./utils/scanManager.js";
 import { DataTypes } from "sequelize";
 const SequelizeStore = sessionConnect(session.Store);
 const app = express();
-
 
 const ensureUserPreferences = async () => {
   const queryInterface = sequelize.getQueryInterface();
@@ -69,12 +65,44 @@ const ensureServerScanColumns = async () => {
 
     const description = await queryInterface.describeTable(serversTable);
 
-    if (!description.scanIntervalHours) {
-      await queryInterface.addColumn(serversTable, "scanIntervalHours", {
+    if (!description.scanTrigger) {
+      await queryInterface.addColumn(serversTable, "scanTrigger", {
+        type: DataTypes.STRING,
+        defaultValue: "disabled",
+      });
+      console.log("Added Servers.scanTrigger column");
+    }
+
+    if (!description.scanIntervalValue) {
+      await queryInterface.addColumn(serversTable, "scanIntervalValue", {
         type: DataTypes.INTEGER,
         defaultValue: 0,
       });
-      console.log("Added Servers.scanIntervalHours column");
+      console.log("Added Servers.scanIntervalValue column");
+    }
+
+    if (!description.scanIntervalUnit) {
+      await queryInterface.addColumn(serversTable, "scanIntervalUnit", {
+        type: DataTypes.STRING,
+        defaultValue: "hours",
+      });
+      console.log("Added Servers.scanIntervalUnit column");
+    }
+
+    if (!description.scanTime) {
+      await queryInterface.addColumn(serversTable, "scanTime", {
+        type: DataTypes.STRING,
+        defaultValue: "02:00",
+      });
+      console.log("Added Servers.scanTime column");
+    }
+
+    if (!description.scanDays) {
+      await queryInterface.addColumn(serversTable, "scanDays", {
+        type: DataTypes.JSON,
+        allowNull: true,
+      });
+      console.log("Added Servers.scanDays column");
     }
 
     if (!description.lastScanAt) {
@@ -99,9 +127,16 @@ const syncdb = async () => {
     defaults: { name: "VIDYA" },
   });
 
-  if (server.scanIntervalHours > 0) {
-    scanManager.setSchedule(server.scanIntervalHours);
-  }
+  scanManager.setSchedule({
+    trigger: server.scanTrigger || "disabled",
+    intervalValue: server.scanIntervalValue || 6,
+    intervalUnit: server.scanIntervalUnit || "hours",
+    time: server.scanTime || "02:00",
+    days:
+      Array.isArray(server.scanDays) && server.scanDays.length
+        ? server.scanDays
+        : [0],
+  });
 };
 syncdb();
 

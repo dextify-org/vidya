@@ -20,8 +20,26 @@ let scanState = {
 };
 
 let scheduleTimer = null;
-let scanIntervalHours = 0;
+let startupRunDone = false;
 let nextRunAt = null;
+let scheduleConfig = {
+  trigger: "disabled",
+  intervalValue: 6,
+  intervalUnit: "hours",
+  time: "02:00",
+  days: [0],
+};
+
+const TRIGGERS = new Set([
+  "disabled",
+  "interval",
+  "daily",
+  "weekly",
+  "startup",
+]);
+const INTERVAL_UNITS = { minutes: 60 * 1000, hours: 60 * 60 * 1000 };
+const STARTUP_DELAY_MS = 10 * 1000;
+const MAX_INTERVAL_MINUTES = 30 * 24 * 60;
 
 const sendEvent = (response, data) => {
   try {
@@ -32,10 +50,130 @@ const sendEvent = (response, data) => {
 };
 
 const getSchedule = () => ({
-  enabled: scanIntervalHours > 0,
-  intervalHours: scanIntervalHours,
+  enabled: scheduleConfig.trigger !== "disabled",
+  trigger: scheduleConfig.trigger,
+  intervalValue: scheduleConfig.intervalValue,
+  intervalUnit: scheduleConfig.intervalUnit,
+  time: scheduleConfig.time,
+  days: [...scheduleConfig.days],
   nextRunAt,
+  lastRunAt: scanState.finishedAt || null,
 });
+
+const normalizeSchedule = (input = {}) => {
+  const requestedTrigger = String(input.trigger ?? "").toLowerCase();
+  const trigger = TRIGGERS.has(requestedTrigger) ? requestedTrigger : "disabled";
+
+  const parsedMinutes = Number(input.intervalValue);
+  const intervalValue = Number.isFinite(parsedMinutes) && parsedMinutes > 0
+    ? Math.min(Math.round(parsedMinutes), MAX_INTERVAL_MINUTES)
+    : 0;
+  const intervalUnit = Object.prototype.hasOwnProperty.call(
+    INTERVAL_UNITS,
+    String(input.intervalUnit),
+  )
+    ? String(input.intervalUnit)
+    : "hours";
+
+  const time = /^([01]\d|2[0-3]):[0-5]\d$/.test(String(input.time ?? ""))
+    ? String(input.time)
+    : "02:00";
+
+  const days = Array.isArray(input.days)
+    ? [
+        ...new Set(
+          input.days
+            .map((day) => Number(day))
+            .filter((day) => Number.isInteger(day) && day >= 0 && day <= 6),
+        ),
+      ].sort((a, b) => a - b)
+    : [];
+
+  if (trigger === "interval" && intervalValue <= 0) {
+    return { error: "Interval value must be greater than zero" };
+  }
+
+  if (trigger === "weekly" && days.length === 0) {
+    return { error: "Select at least one day of the week" };
+  }
+
+  return {
+    config: {
+      trigger,
+      intervalValue,
+      intervalUnit,
+      time,
+      days: days.length ? days : [0],
+    },
+  };
+};
+
+const computeNextRun = (config, fromMs = Date.now()) => {
+  switch (config.trigger) {
+    case "interval":
+      return fromMs + config.intervalValue * INTERVAL_UNITS[config.intervalUnit];
+    case "startup":
+      return fromMs + STARTUP_DELAY_MS;
+    case "daily": {
+      const [hours, minutes] = config.time.split(":").map(Number);
+      const next = new Date(fromMs);
+      next.setHours(hours, minutes, 0, 0);
+      if (next.getTime() <= fromMs) next.setDate(next.getDate() + 1);
+      return next.getTime();
+    }
+    case "weekly": {
+      const [hours, minutes] = config.time.split(":").map(Number);
+      const base = new Date(fromMs);
+      base.setHours(hours, minutes, 0, 0);
+
+      for (let offset = 0; offset <= 7; offset += 1) {
+        const candidate = new Date(base);
+        candidate.setDate(base.getDate() + offset);
+        if (!config.days.includes(candidate.getDay())) continue;
+        if (candidate.getTime() > fromMs) return candidate.getTime();
+      }
+      return null;
+    }
+    default:
+      return null;
+  }
+};
+
+const scheduleNext = () => {
+  if (scheduleTimer) {
+    clearTimeout(scheduleTimer);
+    scheduleTimer = null;
+  }
+
+  if (scanState.running) {
+    nextRunAt = null;
+    return;
+  }
+
+  if (scheduleConfig.trigger === "startup" && startupRunDone) {
+    nextRunAt = null;
+    broadcast();
+    return;
+  }
+
+  const next = computeNextRun(scheduleConfig);
+  nextRunAt = next ? new Date(next).toISOString() : null;
+
+  if (next === null) {
+    broadcast();
+    return;
+  }
+
+  const delay = Math.max(next - Date.now(), 0);
+  scheduleTimer = setTimeout(() => {
+    scheduleTimer = null;
+    if (scheduleConfig.trigger === "startup") startupRunDone = true;
+    if (!startScan()) scheduleNext();
+  }, delay);
+  scheduleTimer.unref?.();
+
+  broadcast();
+};
 
 const getStatus = () => ({ ...scanState });
 
@@ -140,6 +278,8 @@ const runScan = async () => {
     scanState.error = error.message;
     scanState.finishedAt = new Date().toISOString();
     broadcast();
+  } finally {
+    scheduleNext();
   }
 };
 
@@ -162,31 +302,18 @@ const startScan = () => {
   return true;
 };
 
-const setSchedule = (intervalHours) => {
-  const parsed = Number(intervalHours);
-  const hours =
-    Number.isFinite(parsed) && parsed > 0 ? Math.round(parsed) : 0;
+const setSchedule = (input) => {
+  const { config, error } = normalizeSchedule(
+    typeof input === "number" ? { trigger: "interval", intervalValue: input, intervalUnit: "hours" } : input,
+  );
 
-  if (scheduleTimer) {
-    clearInterval(scheduleTimer);
-    scheduleTimer = null;
+  if (error) {
+    throw Object.assign(new Error(error), { status: 400 });
   }
 
-  scanIntervalHours = hours;
-  nextRunAt =
-    hours > 0
-      ? new Date(Date.now() + hours * 60 * 60 * 1000).toISOString()
-      : null;
-
-  if (hours > 0) {
-    scheduleTimer = setInterval(() => {
-      nextRunAt = new Date(
-        Date.now() + scanIntervalHours * 60 * 60 * 1000,
-      ).toISOString();
-      startScan();
-    }, hours * 60 * 60 * 1000);
-    scheduleTimer.unref?.();
-  }
+  scheduleConfig = config;
+  startupRunDone = false;
+  scheduleNext();
 
   return getSchedule();
 };
@@ -206,6 +333,8 @@ export const scanManager = {
   getStatus,
   getSchedule,
   setSchedule,
+  normalizeSchedule,
+  computeNextRun,
   startScan,
   subscribe,
   unsubscribe,

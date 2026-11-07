@@ -53,13 +53,11 @@ router.get("/scan/events", verifyQueryToken, isAdmin, (req, res) => {
 });
 
 router.post("/scan/schedule", isAdmin, async (req, res) => {
-  const requestedInterval = Number(req.body.intervalHours);
+  const { config, error } = scanManager.normalizeSchedule(req.body || {});
 
-  if (!Number.isFinite(requestedInterval) || requestedInterval < 0) {
-    return res.status(400).json({ message: "Invalid scan interval" });
+  if (error) {
+    return res.status(400).json({ message: error });
   }
-
-  const intervalHours = Math.round(requestedInterval);
 
   try {
     const server = await Server.findOne({ where: { name: "VIDYA" } });
@@ -68,13 +66,23 @@ router.post("/scan/schedule", isAdmin, async (req, res) => {
       return res.status(404).json({ message: "Server not found" });
     }
 
-    await server.update({ scanIntervalHours: intervalHours });
-    const schedule = scanManager.setSchedule(intervalHours);
+    await server.update({
+      scanTrigger: config.trigger,
+      scanIntervalValue: config.intervalValue,
+      scanIntervalUnit: config.intervalUnit,
+      scanTime: config.time,
+      scanDays: config.days,
+    });
+
+    const schedule = scanManager.setSchedule(config);
 
     res.status(200).json({ message: "Scan schedule updated", schedule });
   } catch (error) {
     console.error(error);
-    res.status(500).json({ message: "Failed to update scan schedule" });
+    const status = error.status || 500;
+    res.status(status).json({
+      message: status === 400 ? error.message : "Failed to update scan schedule",
+    });
   }
 });
 router.post("/add-user", isAdmin, createUser);

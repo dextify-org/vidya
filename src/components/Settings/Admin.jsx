@@ -33,9 +33,23 @@ const Admin = () => {
   });
   const [scanSchedule, setScanSchedule] = useState({
     enabled: false,
-    intervalHours: 0,
+    trigger: "disabled",
+    intervalValue: 6,
+    intervalUnit: "hours",
+    time: "02:00",
+    days: [0],
     nextRunAt: null,
+    lastRunAt: null,
   });
+  const [scheduleDraft, setScheduleDraft] = useState({
+    trigger: "disabled",
+    intervalValue: 6,
+    intervalUnit: "hours",
+    time: "02:00",
+    days: [0],
+  });
+  const [savingSchedule, setSavingSchedule] = useState(false);
+  const scheduleDirtyRef = useRef(false);
   const [scanElapsed, setScanElapsed] = useState(0);
   const wasScanningRef = useRef(false);
   const [newUserName, setNewUserName] = useState("");
@@ -145,6 +159,20 @@ const Admin = () => {
       eventSource?.close();
     };
   }, []);
+
+  useEffect(() => {
+    if (scheduleDirtyRef.current) return;
+    setScheduleDraft({
+      trigger: scanSchedule.trigger || "disabled",
+      intervalValue: scanSchedule.intervalValue || 6,
+      intervalUnit: scanSchedule.intervalUnit || "hours",
+      time: scanSchedule.time || "02:00",
+      days:
+        Array.isArray(scanSchedule.days) && scanSchedule.days.length
+          ? scanSchedule.days
+          : [0],
+    });
+  }, [scanSchedule]);
 
   useEffect(() => {
     if (!scanStatus.running || !scanStatus.startedAt) {
@@ -464,27 +492,49 @@ const Admin = () => {
     }
   };
 
-  const handleScheduleChange = async (event) => {
-    const intervalHours = Number(event.target.value);
+  const updateScheduleDraft = (patch) => {
+    scheduleDirtyRef.current = true;
+    setScheduleDraft((prev) => ({ ...prev, ...patch }));
+  };
+
+  const toggleScheduleDay = (day) => {
+    scheduleDirtyRef.current = true;
+    setScheduleDraft((prev) => ({
+      ...prev,
+      days: prev.days.includes(day)
+        ? prev.days.filter((value) => value !== day)
+        : [...prev.days, day].sort((a, b) => a - b),
+    }));
+  };
+
+  const handleScheduleSave = async () => {
+    setSavingSchedule(true);
 
     try {
       const { data } = await axios.post(
         "/api/admin/scan/schedule",
-        { intervalHours },
+        scheduleDraft,
         { withCredentials: true }
       );
 
+      scheduleDirtyRef.current = false;
       if (data.schedule) setScanSchedule(data.schedule);
       setToastType("success");
       setToastMessage(
-        intervalHours > 0 ? "scan schedule updated" : "scheduled scan disabled"
+        scheduleDraft.trigger === "disabled"
+          ? "scheduled scan disabled"
+          : "scan schedule updated"
       );
       setShowToast(true);
     } catch (error) {
       console.error(error);
       setToastType("error");
-      setToastMessage("failed to update scan schedule");
+      setToastMessage(
+        error?.response?.data?.message || "failed to update scan schedule"
+      );
       setShowToast(true);
+    } finally {
+      setSavingSchedule(false);
     }
   };
 
@@ -537,11 +587,21 @@ const Admin = () => {
   ];
 
   const scheduleOptions = [
-    { value: 0, label: "Disabled" },
-    { value: 6, label: "Every 6 hours" },
-    { value: 12, label: "Every 12 hours" },
-    { value: 24, label: "Daily" },
-    { value: 168, label: "Weekly" },
+    { value: "disabled", label: "Disabled" },
+    { value: "interval", label: "Interval" },
+    { value: "daily", label: "Daily" },
+    { value: "weekly", label: "Weekly" },
+    { value: "startup", label: "On application startup" },
+  ];
+
+  const weekdayOptions = [
+    { value: 1, label: "Mon" },
+    { value: 2, label: "Tue" },
+    { value: 3, label: "Wed" },
+    { value: 4, label: "Thu" },
+    { value: 5, label: "Fri" },
+    { value: 6, label: "Sat" },
+    { value: 0, label: "Sun" },
   ];
 
   const scanProgress = Math.max(
@@ -874,33 +934,111 @@ const Admin = () => {
           </div>
         </div>
       )}
-      <div className="scan-schedule-row">
-        <label htmlFor="scan-schedule">Scheduled Scan:</label>
-        <select
-          id="scan-schedule"
-          value={scanSchedule.intervalHours || 0}
-          onChange={handleScheduleChange}
-        >
-          {scheduleOptions.map((option) => (
-            <option key={option.value} value={option.value}>
-              {option.label}
-            </option>
-          ))}
-          {scanSchedule.intervalHours > 0 &&
-            !scheduleOptions.some(
-              (option) => option.value === scanSchedule.intervalHours
-            ) && (
-              <option value={scanSchedule.intervalHours}>
-                Every {scanSchedule.intervalHours} hours
+      <div className="scan-schedule">
+        <label className="scan-schedule-label" htmlFor="scan-trigger">
+          Scheduled Scan
+        </label>
+        <div className="scan-schedule-controls">
+          <select
+            className="scan-trigger-select"
+            id="scan-trigger"
+            value={scheduleDraft.trigger}
+            onChange={(event) =>
+              updateScheduleDraft({ trigger: event.target.value })
+            }
+          >
+            {scheduleOptions.map((option) => (
+              <option key={option.value} value={option.value}>
+                {option.label}
               </option>
-            )}
-        </select>
-      </div>
-      {scanSchedule.enabled && scanSchedule.nextRunAt && (
-        <div className="scan-schedule-next">
-          Next scan: {new Date(scanSchedule.nextRunAt).toLocaleString()}
+            ))}
+          </select>
+          {(scheduleDraft.trigger === "interval" ||
+            scheduleDraft.trigger === "daily" ||
+            scheduleDraft.trigger === "weekly") && (
+            <div className="scan-schedule-fields">
+              {scheduleDraft.trigger === "interval" && (
+                <>
+                  <input
+                    className="scan-number-input"
+                    type="number"
+                    min="1"
+                    value={scheduleDraft.intervalValue}
+                    onChange={(event) =>
+                      updateScheduleDraft({
+                        intervalValue: Number(event.target.value),
+                      })
+                    }
+                  />
+                  <select
+                    className="scan-unit-select"
+                    value={scheduleDraft.intervalUnit}
+                    onChange={(event) =>
+                      updateScheduleDraft({ intervalUnit: event.target.value })
+                    }
+                  >
+                    <option value="minutes">minutes</option>
+                    <option value="hours">hours</option>
+                  </select>
+                </>
+              )}
+              {(scheduleDraft.trigger === "daily" ||
+                scheduleDraft.trigger === "weekly") && (
+                <input
+                  className="scan-time-input"
+                  type="time"
+                  value={scheduleDraft.time}
+                  onChange={(event) =>
+                    updateScheduleDraft({ time: event.target.value })
+                  }
+                />
+              )}
+            </div>
+          )}
+          {scheduleDraft.trigger === "weekly" && (
+            <div className="scan-weekdays">
+              {weekdayOptions.map((day) => (
+                <label
+                  key={day.value}
+                  className={`scan-weekday ${
+                    scheduleDraft.days.includes(day.value) ? "active" : ""
+                  }`}
+                >
+                  <input
+                    type="checkbox"
+                    checked={scheduleDraft.days.includes(day.value)}
+                    onChange={() => toggleScheduleDay(day.value)}
+                  />
+                  {day.label}
+                </label>
+              ))}
+            </div>
+          )}
+          <button
+            className="scan-schedule-save"
+            type="button"
+            onClick={handleScheduleSave}
+            disabled={savingSchedule}
+          >
+            {savingSchedule ? "Saving..." : "Save"}
+          </button>
         </div>
-      )}
+        {scheduleDraft.trigger === "startup" && (
+          <div className="scan-schedule-next">
+            A scan runs whenever the VIDYA server starts.
+          </div>
+        )}
+        {scanSchedule.nextRunAt && (
+          <div className="scan-schedule-next">
+            Next scan: {new Date(scanSchedule.nextRunAt).toLocaleString()}
+          </div>
+        )}
+        {scanSchedule.lastRunAt && (
+          <div className="scan-schedule-next">
+            Last scan: {new Date(scanSchedule.lastRunAt).toLocaleString()}
+          </div>
+        )}
+      </div>
       <div className="users-title">
         Users
         <div
