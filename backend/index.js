@@ -22,16 +22,120 @@ import { promises as fsp } from "fs";
 import path from "path";
 import { ASSETS_PATH, WEB_PATH, PORT } from "./config/path.js";
 import { expressSecret } from "./config/secrets.js";
+import { warmUpVideoEncoder } from "./utils/transcode.js";
+import { initHlsSessions, shutdownHlsSessions } from "./utils/hlsSession.js";
+import { scanManager } from "./utils/scanManager.js";
+import { DataTypes } from "sequelize";
 const SequelizeStore = sessionConnect(session.Store);
 const app = express();
 
+const ensureUserPreferences = async () => {
+  const queryInterface = sequelize.getQueryInterface();
+
+  try {
+    const tables = await queryInterface.showAllTables();
+    const usersTable = tables.find(
+      (table) => String(table?.tableName || table).toLowerCase() === "users",
+    );
+
+    if (!usersTable) return;
+
+    const description = await queryInterface.describeTable(usersTable);
+    if (!description.defvideo) {
+      await queryInterface.addColumn(usersTable, "defvideo", {
+        type: DataTypes.STRING,
+      });
+      console.log("Added Users.defvideo column");
+    }
+  } catch (error) {
+    console.error("Failed to migrate user preferences:", error);
+  }
+};
+
+const ensureServerScanColumns = async () => {
+  const queryInterface = sequelize.getQueryInterface();
+
+  try {
+    const tables = await queryInterface.showAllTables();
+    const serversTable = tables.find(
+      (table) => String(table?.tableName || table).toLowerCase() === "servers",
+    );
+
+    if (!serversTable) return;
+
+    const description = await queryInterface.describeTable(serversTable);
+
+    if (!description.scanTrigger) {
+      await queryInterface.addColumn(serversTable, "scanTrigger", {
+        type: DataTypes.STRING,
+        defaultValue: "disabled",
+      });
+      console.log("Added Servers.scanTrigger column");
+    }
+
+    if (!description.scanIntervalValue) {
+      await queryInterface.addColumn(serversTable, "scanIntervalValue", {
+        type: DataTypes.INTEGER,
+        defaultValue: 0,
+      });
+      console.log("Added Servers.scanIntervalValue column");
+    }
+
+    if (!description.scanIntervalUnit) {
+      await queryInterface.addColumn(serversTable, "scanIntervalUnit", {
+        type: DataTypes.STRING,
+        defaultValue: "hours",
+      });
+      console.log("Added Servers.scanIntervalUnit column");
+    }
+
+    if (!description.scanTime) {
+      await queryInterface.addColumn(serversTable, "scanTime", {
+        type: DataTypes.STRING,
+        defaultValue: "02:00",
+      });
+      console.log("Added Servers.scanTime column");
+    }
+
+    if (!description.scanDays) {
+      await queryInterface.addColumn(serversTable, "scanDays", {
+        type: DataTypes.JSON,
+        allowNull: true,
+      });
+      console.log("Added Servers.scanDays column");
+    }
+
+    if (!description.lastScanAt) {
+      await queryInterface.addColumn(serversTable, "lastScanAt", {
+        type: DataTypes.DATE,
+        allowNull: true,
+      });
+      console.log("Added Servers.lastScanAt column");
+    }
+  } catch (error) {
+    console.error("Failed to migrate server scan settings:", error);
+  }
+};
 
 const syncdb = async () => {
   await sequelize.sync({ logging: false });
   console.log("Database & tables created!");
-  await Server.findOrCreate({
+  await ensureUserPreferences();
+  await ensureServerScanColumns();
+  const [server] = await Server.findOrCreate({
     where: { name: "VIDYA" },
     defaults: { name: "VIDYA" },
+  });
+
+  scanManager.setSchedule({
+    trigger: server.scanTrigger || "disabled",
+    intervalValue: server.scanIntervalValue || 6,
+    intervalUnit: server.scanIntervalUnit || "hours",
+    time: server.scanTime || "02:00",
+    days:
+      Array.isArray(server.scanDays) && server.scanDays.length
+        ? server.scanDays
+        : [0],
   });
 };
 syncdb();
@@ -136,6 +240,26 @@ app.get("/isFirstStartUp", async (req, res) => {
 app.get("*", (req, res) => {
   res.sendFile(path.join(WEB_PATH, "index.html"));
 });
+try {
+  await initHlsSessions();
+} catch (error) {
+  console.error("[hls] failed to initialise session storage:", error);
+}
+
+const shutdown = async (signal) => {
+  console.log(`Received ${signal}, shutting down...`);
+  try {
+    await shutdownHlsSessions();
+  } catch (error) {
+    console.error("[hls] shutdown error:", error);
+  }
+  process.exit(0);
+};
+
+process.once("SIGINT", () => shutdown("SIGINT"));
+process.once("SIGTERM", () => shutdown("SIGTERM"));
+
 app.listen(PORT, () => {
   console.log(`Server is running on port ${PORT}`);
+  warmUpVideoEncoder();
 });

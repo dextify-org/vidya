@@ -6,6 +6,8 @@ COPY package.json package-lock.json* ./
 COPY backend/package.json ./backend/
 RUN npm ci
 
+COPY index.html ./
+COPY vite.config.js ./
 COPY public/ ./public/
 COPY src/ ./src/
 RUN npm run build
@@ -24,8 +26,9 @@ COPY --from=frontend-builder /src/build ./build
 COPY backend/ ./backend/
 COPY --from=backend-deps /deps/node_modules ./backend/node_modules
 COPY assets/ /app/defaults/
+RUN apk add --no-cache ffmpeg
 COPY entrypoint.sh /entrypoint.sh
-RUN chmod +x /entrypoint.sh
+RUN sed -i 's/\r$//' /entrypoint.sh && chmod +x /entrypoint.sh
 
 EXPOSE 31415
 ENV VIDYA_DATA_PATH=/data
