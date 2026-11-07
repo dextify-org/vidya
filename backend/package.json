@@ -1,6 +1,6 @@
 {
   "name": "vidya-server",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "VIDYA Media Server Backend",
   "main": "index.js",
   "type": "module",
